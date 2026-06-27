@@ -1,0 +1,166 @@
+import { useState, useEffect } from 'react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
+import { savingsApi } from '../lib/services';
+import { formatCurrency, formatShortDate } from '../lib/format';
+import { Card, CardHeader, Badge, Button, EmptyState } from '../components/ui/index';
+import { Modal, FormGroup, Input } from '../components/ui/Modal';
+import { useUIStore } from '../store/uiStore';
+
+export default function SavingsPage() {
+  const [data, setData]       = useState({ balance: 0, transactions: [] });
+  const [loading, setLoading] = useState(true);
+  const [modal, setModal]     = useState(null);
+  const [form, setForm]       = useState({ value:'', date: new Date().toISOString().slice(0,10), observation:'' });
+  const [saving, setSaving]   = useState(false);
+  const toast = useUIStore((s) => s);
+
+  const load = async () => {
+    setLoading(true);
+    try { const r = await savingsApi.get(); setData(r.data); }
+    catch { toast.error('Erro ao carregar reserva.'); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  function openModal(type) {
+    setModal(type);
+    setForm({ value:'', date: new Date().toISOString().slice(0,10), observation:'' });
+  }
+
+  async function handle() {
+    if (!form.value || parseFloat(form.value) <= 0) { toast.error('Informe um valor válido.'); return; }
+    setSaving(true);
+    try {
+      const fn = modal === 'deposit' ? savingsApi.deposit : savingsApi.withdraw;
+      await fn({ value: parseFloat(form.value), date: form.date, observation: form.observation });
+      toast.success(modal === 'deposit' ? 'Depósito realizado!' : 'Retirada realizada!');
+      setModal(null); load();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    finally { setSaving(false); }
+  }
+
+  const chartData = [...(data.transactions ?? [])].reverse().map((t) => ({
+    label: formatShortDate(t.transactionDate),
+    saldo: Number(t.balanceAfter),
+  }));
+
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+      <div className="bg-white border border-border rounded-xl p-3 shadow-modal text-xs">
+        <p className="text-muted mb-1">{label}</p>
+        <p className="font-bold text-primary-dark">{formatCurrency(payload[0]?.value)}</p>
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-in">
+      {/* Hero card */}
+      <div className="bg-gradient-to-br from-primary to-primary-dark rounded-3xl p-6 text-white relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white rounded-full -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white rounded-full translate-y-1/2 -translate-x-1/2" />
+        </div>
+        <div className="relative">
+          <p className="text-white/70 text-sm font-medium mb-1">Saldo Guardado</p>
+          <p className="text-5xl font-bold font-mono tabular-nums mb-4">{formatCurrency(data.balance)}</p>
+          <p className="text-white/60 text-xs mb-6">Reserva financeira separada do fluxo mensal</p>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => openModal('withdraw')}
+              className="bg-white/10 border-white/30 text-white hover:bg-white/20 flex-1 justify-center">
+              − Retirar
+            </Button>
+            <Button onClick={() => openModal('deposit')}
+              className="bg-white text-primary-dark hover:bg-white/90 flex-1 justify-center font-bold">
+              + Depositar
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Gráfico */}
+      {chartData.length > 1 && (
+        <Card>
+          <CardHeader title="Evolução da Reserva" />
+          <div className="h-52">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData} margin={{ left: -20 }}>
+                <defs>
+                  <linearGradient id="saldoGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10B981" stopOpacity={0.2} />
+                    <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                <Tooltip content={<CustomTooltip />} />
+                <Area type="monotone" dataKey="saldo" stroke="#10B981" strokeWidth={2.5} fill="url(#saldoGrad)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
+
+      {/* Histórico */}
+      <Card padding={false}>
+        <div className="px-5 py-4 border-b border-border">
+          <h3 className="font-semibold text-slate-900">Histórico de Movimentações</h3>
+        </div>
+        {loading ? <div className="p-5 space-y-3">{Array.from({length:4}).map((_,i)=><div key={i} className="h-10 shimmer-bg rounded-xl" />)}</div>
+          : data.transactions.length === 0
+            ? <EmptyState icon="🏦" title="Sem movimentações" description="Faça o primeiro depósito para começar sua reserva de emergência." />
+            : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-subtle/60"><tr>
+                    {['Tipo','Valor','Saldo após','Data','Observação'].map(h=>(
+                      <th key={h} className="table-header">{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody className="divide-y divide-border/60">
+                    {data.transactions.map((t) => (
+                      <tr key={t.id} className="hover:bg-subtle/40 transition-colors">
+                        <td className="table-cell">
+                          <Badge variant={t.type==='deposit'?'success':'danger'}>{t.type==='deposit'?'Depósito':'Retirada'}</Badge>
+                        </td>
+                        <td className={`table-cell font-mono tabular-nums font-bold ${t.type==='deposit'?'text-primary-dark':'text-danger-dark'}`}>
+                          {t.type==='deposit'?'+':'-'}{formatCurrency(t.value)}
+                        </td>
+                        <td className="table-cell font-mono tabular-nums text-slate-600">{formatCurrency(t.balanceAfter)}</td>
+                        <td className="table-cell text-muted">{formatShortDate(t.transactionDate)}</td>
+                        <td className="table-cell text-muted">{t.observation ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+      </Card>
+
+      {/* Modal */}
+      <Modal open={!!modal} onClose={() => setModal(null)} title={modal==='deposit'?'Depositar na Reserva':'Retirar da Reserva'} size="sm">
+        <div className="space-y-4">
+          {modal === 'deposit' && (
+            <div className="bg-primary-subtle border border-primary/20 rounded-xl p-3 text-xs text-primary-dark">
+              💡 O valor depositado será descontado do saldo atual do mês em que ocorrer.
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <FormGroup label="Valor" required><Input type="number" min="0" step="0.01" value={form.value} onChange={(e) => setForm({...form,value:e.target.value})} autoFocus /></FormGroup>
+            <FormGroup label="Data"><Input type="date" value={form.date} onChange={(e) => setForm({...form,date:e.target.value})} /></FormGroup>
+          </div>
+          <FormGroup label="Observação"><Input value={form.observation} onChange={(e) => setForm({...form,observation:e.target.value})} placeholder="Opcional" /></FormGroup>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setModal(null)}>Cancelar</Button>
+            <Button variant={modal==='deposit'?'primary':'danger'} onClick={handle} loading={saving}>
+              {modal==='deposit'?'Depositar':'Retirar'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}

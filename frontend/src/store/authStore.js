@@ -1,0 +1,61 @@
+import { create } from 'zustand';
+import { api, extractErrorMessage } from '../lib/api';
+import { setAccessToken } from '../lib/tokenStore';
+
+export const useAuthStore = create((set) => ({
+  user: null,
+  status: 'idle',
+  error: null,
+
+  async bootstrap() {
+    set({ status: 'loading' });
+    try {
+      const { data: refreshData } = await api.post('/auth/refresh');
+      setAccessToken(refreshData.accessToken);
+      const { data: meData } = await api.get('/auth/me');
+      set({ user: meData.user, status: 'authenticated', error: null });
+    } catch {
+      setAccessToken(null);
+      set({ user: null, status: 'unauthenticated' });
+    }
+  },
+
+  async login(email, password) {
+    set({ status: 'loading', error: null });
+    try {
+      const { data } = await api.post('/auth/login', { email, password });
+      setAccessToken(data.accessToken);
+      set({ user: data.user, status: 'authenticated', error: null });
+      return true;
+    } catch (error) {
+      set({ status: 'unauthenticated', error: extractErrorMessage(error, 'E-mail ou senha inválidos.') });
+      return false;
+    }
+  },
+
+  async register(name, email, password) {
+    set({ status: 'loading', error: null });
+    try {
+      const { data } = await api.post('/auth/register', { name, email, password });
+      setAccessToken(data.accessToken);
+      set({ user: data.user, status: 'authenticated', error: null });
+      return true;
+    } catch (error) {
+      set({ status: 'unauthenticated', error: extractErrorMessage(error, 'Não foi possível criar a conta.') });
+      return false;
+    }
+  },
+
+  async logout() {
+    try { await api.post('/auth/logout'); } catch {}
+    setAccessToken(null);
+    set({ user: null, status: 'unauthenticated', error: null });
+  },
+
+  forceSignOut() {
+    setAccessToken(null);
+    set({ user: null, status: 'unauthenticated' });
+  },
+
+  clearError() { set({ error: null }); },
+}));
