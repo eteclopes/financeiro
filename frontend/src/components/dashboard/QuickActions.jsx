@@ -7,6 +7,7 @@ import { formatCurrency } from '../../lib/format';
 import { Button } from '../ui/index';
 import { Modal, FormGroup, Input, Select } from '../ui/Modal';
 import { useUIStore } from '../../store/uiStore';
+import { IconIncome, IconExpense, IconCheck, IconCard, IconGoal, IconAlert } from '../icons';
 
 const PM_LABELS = { cash: 'Dinheiro', pix: 'PIX', debit: 'Débito', credit: 'Crédito', transfer: 'Transferência' };
 const today = () => new Date().toISOString().slice(0, 10);
@@ -20,7 +21,6 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
   const [modal, setModal]   = useState(null);
   const [saving, setSaving] = useState(false);
 
-  // Formulários locais de cada ação
   const [incForm, setIncForm]   = useState({ description: '', value: '', paymentMethod: 'pix', date: today() });
   const [expForm, setExpForm]   = useState({ description: '', value: '', categoryId: '', paymentMethod: 'pix', date: today() });
   const [expCats, setExpCats]   = useState([]);
@@ -68,8 +68,6 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
       setPreview(r.data);
     } catch { toast.error('Erro ao carregar pré-visualização.'); }
   }
-
-  // ---- Handlers de submissão ----
 
   async function saveIncome() {
     if (!incForm.description || !incForm.value) { toast.error('Preencha descrição e valor.'); return; }
@@ -171,25 +169,29 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
   }
 
   const ACTIONS = [
-    { icon: '↑', label: 'Nova Receita',   bg: 'bg-primary-muted text-primary-dark dark:bg-primary/10 dark:text-primary-light',  onClick: () => { setIncForm({ description: '', value: '', paymentMethod: 'pix', date: today() }); setModal('income'); } },
-    { icon: '↓', label: 'Nova Despesa',   bg: 'bg-danger-muted text-danger-dark dark:bg-danger/10 dark:text-danger-light',    onClick: openExpense },
-    { icon: '✓', label: 'Pagar Conta',    bg: 'bg-info-muted text-info-dark dark:bg-info/10 dark:text-info-light',        onClick: () => { setPayTarget(null); setPayAmount(''); setPayMethod('pix'); setModal('pay'); } },
-    { icon: '▣', label: 'Pagar Fatura',   bg: 'bg-warning-muted text-warning-dark dark:bg-warning/10 dark:text-warning-light',  onClick: openFatura },
-    { icon: '◉', label: 'Aporte em Meta', bg: 'bg-purple-100 text-purple-700 dark:bg-accentpurple/10 dark:text-accentpurple-light',       onClick: () => { setGoalTarget(null); setContribValue(''); setModal('goal'); } },
+    { Icon: IconIncome,  label: 'Receita',     iconBg: 'bg-primary-muted dark:bg-primary/15',   iconColor: 'text-primary-dark dark:text-primary-light',    onClick: () => { setIncForm({ description: '', value: '', paymentMethod: 'pix', date: today() }); setModal('income'); } },
+    { Icon: IconExpense, label: 'Despesa',     iconBg: 'bg-danger-muted dark:bg-danger/15',     iconColor: 'text-danger-dark dark:text-danger-light',      onClick: openExpense },
+    { Icon: IconCheck,   label: 'Pagar conta', iconBg: 'bg-info-muted dark:bg-info/15',         iconColor: 'text-info-dark dark:text-info-light',          onClick: () => { setPayTarget(null); setPayAmount(''); setPayMethod('pix'); setModal('pay'); } },
+    { Icon: IconCard,    label: 'Fatura',      iconBg: 'bg-warning-muted dark:bg-warning/15',   iconColor: 'text-warning-dark dark:text-warning-light',    onClick: openFatura },
+    { Icon: IconGoal,    label: 'Meta',        iconBg: 'bg-purple-100 dark:bg-accentpurple/15', iconColor: 'text-purple-700 dark:text-accentpurple-light', onClick: () => { setGoalTarget(null); setContribValue(''); setModal('goal'); } },
     ...(monthStatus === 'open'
-      ? [{ icon: '⊠', label: 'Fechar Mês', bg: 'bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-zinc-300', onClick: openClose }]
+      ? [{ Icon: IconAlert, label: 'Fechar mês', iconBg: 'bg-gray-100 dark:bg-white/10', iconColor: 'text-gray-600 dark:text-zinc-300', onClick: openClose }]
       : []
     ),
   ];
 
   return (
     <>
-      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-        {ACTIONS.map((a) => (
-          <button key={a.label} onClick={a.onClick}
-            className={`flex flex-col items-center gap-1.5 p-3 rounded-xl text-xs font-medium transition-all hover:scale-105 active:scale-95 ${a.bg}`}>
-            <span className="text-lg leading-none">{a.icon}</span>
-            <span className="text-center leading-tight">{a.label}</span>
+      <div className="flex flex-wrap gap-2">
+        {ACTIONS.map(({ Icon, label, iconBg, iconColor, onClick }) => (
+          <button key={label} onClick={onClick}
+            className="flex items-center gap-2 bg-white dark:bg-panel-dark border border-border dark:border-white/10
+                       rounded-full pl-2 pr-3.5 py-2 transition-all duration-150 hover:border-slate-300 dark:hover:border-white/20
+                       hover:shadow-sm active:scale-[0.97]">
+            <span className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${iconBg} ${iconColor}`}>
+              <Icon size={15} strokeWidth={2} />
+            </span>
+            <span className="text-xs font-semibold text-slate-700 dark:text-zinc-200">{label}</span>
           </button>
         ))}
       </div>
@@ -314,9 +316,9 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
                   </Select>
                 </FormGroup>
                 {invoiceTarget && (
-                  <p className="text-sm bg-gray-50 p-2 rounded">
-                    Total: <span className="font-mono font-medium">{formatCurrency(invoiceTarget.totalValue)}</span>
-                  </p>
+                  <div className="bg-subtle dark:bg-white/[0.04] rounded-xl p-3 text-sm">
+                    Total: <span className="font-mono font-semibold">{formatCurrency(invoiceTarget.totalValue)}</span>
+                  </div>
                 )}
                 <FormGroup label="Forma de pagamento">
                   <Select value={invMethod} onChange={(e) => setInvMethod(e.target.value)}>
@@ -369,7 +371,7 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
           {!preview
             ? <p className="text-sm text-muted">Carregando resumo...</p>
             : (
-              <div className="bg-gray-50 rounded-lg p-3 text-xs space-y-1.5">
+              <div className="bg-subtle dark:bg-white/[0.04] rounded-xl p-3 text-xs space-y-1.5">
                 {[
                   ['Contas pendentes',       preview.pendingExpensesCount],
                   ['Faturas em aberto',      preview.openInvoicesCount],
@@ -379,7 +381,7 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
                 ].map(([label, val]) => (
                   <div key={label} className="flex justify-between">
                     <span className="text-muted">{label}</span>
-                    <span className="font-mono font-medium text-gray-900">{val ?? 0}</span>
+                    <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">{val ?? 0}</span>
                   </div>
                 ))}
               </div>

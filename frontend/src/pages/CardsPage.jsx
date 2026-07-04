@@ -92,7 +92,7 @@ export default function CardsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-bold text-xl text-slate-900">Cartões de Crédito</h2>
+          <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Cartões de Crédito</h2>
           <p className="text-sm text-muted mt-0.5">{cards.length} cartão(ões) cadastrado(s)</p>
         </div>
         <Button onClick={() => setCardModal(true)}>+ Novo Cartão</Button>
@@ -131,18 +131,18 @@ export default function CardsPage() {
           {/* Detalhe do cartão selecionado */}
           {selected && (
             <Card padding={false}>
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-wrap gap-3">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border dark:border-white/[0.06] flex-wrap gap-3">
                 <div>
-                  <h3 className="font-semibold text-slate-900">{selected.name}</h3>
+                  <h3 className="font-semibold text-slate-900 dark:text-zinc-50">{selected.name}</h3>
                   <p className="text-xs text-muted mt-0.5">
                     Fecha dia {selected.closingDay} · Vence dia {selected.dueDay} · Limite {formatCurrency(selected.limitValue)}
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <div className="flex gap-1 bg-subtle p-1 rounded-xl">
+                  <div className="flex gap-1 bg-subtle dark:bg-white/5 p-1 rounded-xl">
                     {['invoices'].map((t) => (
                       <button key={t} onClick={() => setTab(t)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${tab===t?'bg-white shadow text-slate-900':'text-muted'}`}>
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${tab===t?'bg-white dark:bg-panel-dark shadow text-slate-900 dark:text-zinc-50':'text-muted'}`}>
                         Faturas
                       </button>
                     ))}
@@ -160,16 +160,16 @@ export default function CardsPage() {
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
-                    <thead className="bg-subtle/60"><tr>
+                    <thead className="bg-subtle/60 dark:bg-white/[0.03]"><tr>
                       {['Referência','Fechamento','Vencimento','Total','Status',''].map(h=><th key={h} className="table-header">{h}</th>)}
                     </tr></thead>
-                    <tbody className="divide-y divide-border/60">
+                    <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                       {invoices.map((inv) => (
-                        <tr key={inv.id} className="hover:bg-subtle/40 transition-colors">
-                          <td className="table-cell font-semibold">{String(inv.referenceMonth).padStart(2,'0')}/{inv.referenceYear}</td>
+                        <tr key={inv.id} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
+                          <td className="table-cell font-semibold text-slate-800 dark:text-zinc-200">{String(inv.referenceMonth).padStart(2,'0')}/{inv.referenceYear}</td>
                           <td className="table-cell text-muted">{formatShortDate(inv.closingDate)}</td>
                           <td className="table-cell text-muted">{formatShortDate(inv.dueDate)}</td>
-                          <td className="table-cell font-mono tabular-nums font-bold">{formatCurrency(inv.totalValue)}</td>
+                          <td className="table-cell font-mono tabular-nums font-bold text-slate-800 dark:text-zinc-200">{formatCurrency(inv.totalValue)}</td>
                           <td className="table-cell"><Badge variant={STATUS_V[inv.status]}>{STATUS_L[inv.status]}</Badge></td>
                           <td className="table-cell">
                             {inv.status !== 'paid' && (
@@ -244,9 +244,9 @@ export default function CardsPage() {
       <Modal open={!!payTarget} onClose={() => setPayTarget(null)} title="Pagar Fatura" size="sm">
         {payTarget && (
           <div className="space-y-4">
-            <div className="bg-subtle rounded-2xl p-4">
+            <div className="bg-subtle dark:bg-white/[0.04] rounded-2xl p-4">
               <p className="text-xs text-muted mb-1">Valor total da fatura</p>
-              <p className="text-3xl font-bold font-mono text-slate-900">{formatCurrency(payTarget.totalValue)}</p>
+              <p className="text-3xl font-bold font-mono text-slate-900 dark:text-zinc-50">{formatCurrency(payTarget.totalValue)}</p>
               <p className="text-xs text-muted mt-1">{String(payTarget.referenceMonth).padStart(2,'0')}/{payTarget.referenceYear}</p>
             </div>
             <FormGroup label="Forma de pagamento">

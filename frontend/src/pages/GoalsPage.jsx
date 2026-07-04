@@ -5,6 +5,7 @@ import { formatCurrency } from '../lib/format';
 import { Card, Badge, Button, EmptyState, ProgressBar } from '../components/ui/index';
 import { Modal, FormGroup, Input } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
+import { useThemeStore } from '../store/themeStore';
 
 export default function GoalsPage() {
   const selectedMonthId = useMonthStore((s) => s.selectedMonthId);
@@ -66,11 +67,12 @@ export default function GoalsPage() {
 
   function GoalCard({ goal }) {
     const pct = Math.min(Math.round(goal.percentage), 100);
+    const theme = useThemeStore((s) => s.theme);
     return (
       <Card className="animate-fade-in">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1 min-w-0 mr-3">
-            <p className="font-bold text-slate-900 text-base">{goal.name}</p>
+            <p className="font-bold text-slate-900 dark:text-zinc-50 text-base">{goal.name}</p>
             {goal.description && <p className="text-xs text-muted mt-0.5">{goal.description}</p>}
           </div>
           <Badge variant={goal.status==='active'?'info':goal.status==='completed'?'success':'default'}>
@@ -82,7 +84,7 @@ export default function GoalsPage() {
         <div className="flex items-center gap-4 mb-4">
           <div className="relative h-16 w-16 shrink-0">
             <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke="#F1F5F9" strokeWidth="3" />
+              <circle cx="18" cy="18" r="15.9" fill="none" stroke={theme === 'dark' ? '#27272A' : '#F1F5F9'} strokeWidth="3" />
               <circle cx="18" cy="18" r="15.9" fill="none" stroke={SCORE_COLOR(pct)} strokeWidth="3"
                 strokeDasharray={`${pct} ${100-pct}`} strokeLinecap="round"
                 style={{ transition: 'stroke-dasharray 0.6s ease' }} />
@@ -98,18 +100,18 @@ export default function GoalsPage() {
             <ProgressBar value={goal.progress} max={Number(goal.targetValue)} height="h-3"
               color={pct >= 75 ? 'primary' : pct >= 40 ? 'warning' : 'info'} />
             <div className="flex justify-between mt-1">
-              <span className="text-sm font-bold text-primary-dark">{formatCurrency(goal.progress)}</span>
-              <span className="text-sm font-bold text-slate-700">{formatCurrency(goal.targetValue)}</span>
+              <span className="text-sm font-bold text-primary-dark dark:text-primary-light">{formatCurrency(goal.progress)}</span>
+              <span className="text-sm font-bold text-slate-700 dark:text-zinc-300">{formatCurrency(goal.targetValue)}</span>
             </div>
           </div>
         </div>
 
         {goal.remaining > 0 && goal.status === 'active' && (
-          <div className="bg-subtle rounded-xl p-3 mb-4 text-xs">
+          <div className="bg-subtle dark:bg-white/[0.04] rounded-xl p-3 mb-4 text-xs">
             <span className="text-muted">Faltam </span>
-            <span className="font-bold text-slate-800">{formatCurrency(goal.remaining)}</span>
+            <span className="font-bold text-slate-800 dark:text-zinc-200">{formatCurrency(goal.remaining)}</span>
             {goal.estimatedMonthsAtCurrentPace && (
-              <span className="text-muted"> · ao ritmo atual: ~<span className="font-semibold text-slate-700">{goal.estimatedMonthsAtCurrentPace} meses</span></span>
+              <span className="text-muted"> · ao ritmo atual: ~<span className="font-semibold text-slate-700 dark:text-zinc-300">{goal.estimatedMonthsAtCurrentPace} meses</span></span>
             )}
           </div>
         )}
@@ -132,7 +134,7 @@ export default function GoalsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-bold text-xl text-slate-900">Metas Financeiras</h2>
+          <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Metas Financeiras</h2>
           <p className="text-sm text-muted mt-0.5">{active.length} meta(s) ativa(s)</p>
         </div>
         <Button onClick={() => setGoalModal(true)}>+ Nova Meta</Button>
@@ -149,13 +151,13 @@ export default function GoalsPage() {
         <div className="space-y-6">
           {active.length > 0 && (
             <div>
-              <p className="text-sm font-semibold text-slate-600 mb-3">Ativas ({active.length})</p>
+              <p className="text-sm font-semibold text-slate-600 dark:text-zinc-400 mb-3">Ativas ({active.length})</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{active.map((g) => <GoalCard key={g.id} goal={g} />)}</div>
             </div>
           )}
           {completed.length > 0 && (
             <div>
-              <p className="text-sm font-semibold text-slate-600 mb-3">Concluídas ({completed.length})</p>
+              <p className="text-sm font-semibold text-slate-600 dark:text-zinc-400 mb-3">Concluídas ({completed.length})</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{completed.map((g) => <GoalCard key={g.id} goal={g} />)}</div>
             </div>
           )}
@@ -196,7 +198,7 @@ export default function GoalsPage() {
             <FormGroup label="Valor" required><Input type="number" min="0" step="0.01" value={contribForm.value} onChange={(e) => setContribForm({...contribForm,value:e.target.value})} autoFocus /></FormGroup>
             <FormGroup label="Data"><Input type="date" value={contribForm.date} onChange={(e) => setContribForm({...contribForm,date:e.target.value})} /></FormGroup>
           </div>
-          <p className="text-xs text-muted bg-subtle p-3 rounded-xl">O valor será descontado do saldo atual do mês selecionado no sistema.</p>
+          <p className="text-xs text-muted bg-subtle dark:bg-white/[0.04] p-3 rounded-xl">O valor será descontado do saldo atual do mês selecionado no sistema.</p>
           <div className="flex gap-3 justify-end">
             <Button variant="outline" onClick={() => setContribTarget(null)}>Cancelar</Button>
             <Button onClick={saveContrib} loading={saving}>Confirmar Aporte</Button>
@@ -211,7 +213,7 @@ export default function GoalsPage() {
           <label className="flex items-start gap-2.5 text-sm cursor-pointer select-none">
             <input type="checkbox" checked={refundContributions} onChange={(e) => setRefundContributions(e.target.checked)} className="w-4 h-4 rounded accent-primary mt-0.5" />
             <div>
-              <span className="font-medium text-slate-700">Devolver aportes ao saldo</span>
+              <span className="font-medium text-slate-700 dark:text-zinc-300">Devolver aportes ao saldo</span>
               <p className="text-xs text-muted">{formatCurrency(cancelTarget?.progress ?? 0)} serão devolvidos ao mês atual</p>
             </div>
           </label>

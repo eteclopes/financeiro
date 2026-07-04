@@ -203,7 +203,7 @@ export default function ExpensesPage() {
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="font-bold text-xl text-slate-900">Despesas</h2>
+        <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Despesas</h2>
         <AddButton />
       </div>
 
@@ -220,20 +220,20 @@ export default function ExpensesPage() {
           /* ── Tabela Prioridade ── */
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-subtle/60">
+              <thead className="bg-subtle/60 dark:bg-white/[0.03]">
                 <tr>
                   {['Descrição','Parcela','Pago','Saldo Devedor','Vencimento','Status','Ações'].map(h=>(
                     <th key={h} className="table-header">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
+              <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                 {filtered.map((e) => {
                   const debt = debts.find((d) => String(d.id) === String(e.debtId));
                   const alreadyPaid = ['paid','settled'].includes(e.status);
                   return (
-                    <tr key={e.id} className="hover:bg-subtle/40 transition-colors">
-                      <td className="table-cell font-semibold text-slate-800">{e.description}</td>
+                    <tr key={e.id} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
+                      <td className="table-cell font-semibold text-slate-800 dark:text-zinc-200">{e.description}</td>
                       <td className="table-cell font-mono tabular-nums">{formatCurrency(e.value)}</td>
                       <td className="table-cell font-mono tabular-nums text-primary-dark">{formatCurrency(e.paidAmount)}</td>
                       <td className="table-cell font-mono tabular-nums text-danger-dark font-semibold">
@@ -279,17 +279,17 @@ export default function ExpensesPage() {
           /* ── Tabela Fixas ── */
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-subtle/60">
+              <thead className="bg-subtle/60 dark:bg-white/[0.03]">
                 <tr>
                   {['Descrição','Categoria','Valor','Vencimento','Status','Ações'].map(h=>(
                     <th key={h} className="table-header">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
+              <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                 {filtered.map((e) => (
-                  <tr key={e.id} className="hover:bg-subtle/40 transition-colors">
-                    <td className="table-cell font-semibold text-slate-800">{e.description}</td>
+                  <tr key={e.id} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
+                    <td className="table-cell font-semibold text-slate-800 dark:text-zinc-200">{e.description}</td>
                     <td className="table-cell text-muted">{e.category?.name}</td>
                     <td className="table-cell font-mono tabular-nums">{formatCurrency(e.value)}</td>
                     <td className="table-cell text-muted">{formatShortDate(e.dueDate)}</td>
@@ -319,17 +319,17 @@ export default function ExpensesPage() {
           /* ── Tabela Variáveis ── */
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-subtle/60">
+              <thead className="bg-subtle/60 dark:bg-white/[0.03]">
                 <tr>
                   {['Descrição','Categoria','Valor','Data','Forma','Status','Ações'].map(h=>(
                     <th key={h} className="table-header">{h}</th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
+              <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                 {filtered.map((e) => (
-                  <tr key={e.id} className="hover:bg-subtle/40 transition-colors">
-                    <td className="table-cell font-semibold text-slate-800">{e.description}</td>
+                  <tr key={e.id} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
+                    <td className="table-cell font-semibold text-slate-800 dark:text-zinc-200">{e.description}</td>
                     <td className="table-cell text-muted">{e.category?.name}</td>
                     <td className="table-cell font-mono tabular-nums">{formatCurrency(e.value)}</td>
                     <td className="table-cell text-muted">{formatShortDate(e.dueDate)}</td>
@@ -354,10 +354,10 @@ export default function ExpensesPage() {
       <Modal open={!!payModal} onClose={() => setPayModal(null)} title="Registrar Pagamento" size="sm">
         {payModal && (
           <div className="space-y-4">
-            <div className="bg-subtle rounded-2xl p-4">
+            <div className="bg-subtle dark:bg-white/[0.04] rounded-2xl p-4">
               <p className="text-xs text-muted mb-1">Despesa</p>
-              <p className="font-semibold text-slate-900">{payModal.description}</p>
-              <p className="text-sm text-muted mt-1">Valor da parcela: <span className="font-mono font-semibold text-slate-800">{formatCurrency(payModal.value)}</span></p>
+              <p className="font-semibold text-slate-900 dark:text-zinc-50">{payModal.description}</p>
+              <p className="text-sm text-muted mt-1">Valor da parcela: <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">{formatCurrency(payModal.value)}</span></p>
             </div>
             <FormGroup label="Valor pago" required>
               <Input type="number" min="0" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
@@ -407,7 +407,7 @@ export default function ExpensesPage() {
           </FormGroup>
           <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
             <input type="checkbox" checked={varForm.paid} onChange={(e) => setVarForm({...varForm,paid:e.target.checked})} className="w-4 h-4 rounded accent-primary" />
-            <span className="text-slate-700">Já foi pago</span>
+            <span className="text-slate-700 dark:text-zinc-300">Já foi pago</span>
           </label>
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="outline" onClick={() => setVarModal(false)}>Cancelar</Button>
@@ -502,7 +502,7 @@ export default function ExpensesPage() {
           <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
             <input type="checkbox" checked={debtForm.flexiblePayment} onChange={(e) => setDebtForm({...debtForm,flexiblePayment:e.target.checked})} className="w-4 h-4 rounded accent-primary" />
             <div>
-              <span className="text-slate-700 font-medium">Aceitar pagamento parcial</span>
+              <span className="text-slate-700 dark:text-zinc-300 font-medium">Aceitar pagamento parcial</span>
               <p className="text-xs text-muted">O valor não pago será somado à próxima parcela</p>
             </div>
           </label>
@@ -533,7 +533,7 @@ export default function ExpensesPage() {
           <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
             <input type="checkbox" checked={editDebtForm.flexiblePayment} onChange={(e) => setEditDebtForm({...editDebtForm,flexiblePayment:e.target.checked})} className="w-4 h-4 rounded accent-primary" />
             <div>
-              <span className="text-slate-700 font-medium">Aceitar pagamento parcial</span>
+              <span className="text-slate-700 dark:text-zinc-300 font-medium">Aceitar pagamento parcial</span>
               <p className="text-xs text-muted">O valor não pago será somado à próxima parcela</p>
             </div>
           </label>

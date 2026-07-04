@@ -49,7 +49,7 @@ export default function PurchaseSimulatorPage() {
   return (
     <div className="space-y-5 animate-fade-in max-w-3xl">
       <div>
-        <h2 className="font-bold text-xl text-slate-900">Simulador de Compras</h2>
+        <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Simulador de Compras</h2>
         <p className="text-sm text-muted mt-0.5">Analise o impacto antes de comprar. Nenhum dado é salvo.</p>
       </div>
 
@@ -107,7 +107,7 @@ export default function PurchaseSimulatorPage() {
                   <p className={`text-lg font-bold ${result.recommended ? 'text-primary-dark' : 'text-danger-dark'}`}>
                     {result.recommended ? 'Compra Recomendada' : 'Não Recomendada'}
                   </p>
-                  <p className="text-sm text-slate-600 mt-0.5 leading-relaxed">{result.explanation}</p>
+                  <p className="text-sm text-slate-600 dark:text-zinc-400 mt-0.5 leading-relaxed">{result.explanation}</p>
                 </div>
               </div>
             </div>
@@ -116,11 +116,11 @@ export default function PurchaseSimulatorPage() {
             <div className="grid grid-cols-2 gap-3">
               <Card className="!p-4">
                 <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Impacto Mensal</p>
-                <p className="text-2xl font-bold font-mono tabular-nums text-slate-900">{formatCurrency(result.monthlyImpact)}</p>
+                <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-zinc-50">{formatCurrency(result.monthlyImpact)}</p>
               </Card>
               <Card className="!p-4">
                 <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Impacto Anual</p>
-                <p className="text-2xl font-bold font-mono tabular-nums text-slate-900">{formatCurrency(result.annualImpact)}</p>
+                <p className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-zinc-50">{formatCurrency(result.annualImpact)}</p>
               </Card>
             </div>
 
@@ -144,7 +144,7 @@ export default function PurchaseSimulatorPage() {
               <Card className="!p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-slate-900 text-sm">{result.cardCheck.cardName}</p>
+                    <p className="font-semibold text-slate-900 dark:text-zinc-50 text-sm">{result.cardCheck.cardName}</p>
                     <p className="text-xs text-muted mt-0.5">Disponível: <span className="font-mono">{formatCurrency(result.cardCheck.availableLimit)}</span></p>
                   </div>
                   <Badge variant={result.cardCheck.sufficient ? 'success' : 'danger'}>
@@ -175,7 +175,7 @@ export default function PurchaseSimulatorPage() {
           <Card className="flex items-center justify-center !py-16">
             <div className="text-center">
               <div className="text-5xl mb-4 opacity-20">⊕</div>
-              <p className="font-semibold text-slate-700">Configure e simule</p>
+              <p className="font-semibold text-slate-700 dark:text-zinc-300">Configure e simule</p>
               <p className="text-sm text-muted mt-1">Preencha os dados ao lado e clique em Analisar</p>
             </div>
           </Card>

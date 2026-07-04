@@ -5,6 +5,7 @@ import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState } from '../components/ui/index';
 import { Modal, FormGroup, Input } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
+import { useThemeStore } from '../store/themeStore';
 
 export default function SavingsPage() {
   const [data, setData]       = useState({ balance: 0, transactions: [] });
@@ -13,6 +14,9 @@ export default function SavingsPage() {
   const [form, setForm]       = useState({ value:'', date: new Date().toISOString().slice(0,10), observation:'' });
   const [saving, setSaving]   = useState(false);
   const toast = useUIStore((s) => s);
+  const theme = useThemeStore((s) => s.theme);
+  const gridStroke = theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#F1F5F9';
+  const axisColor  = theme === 'dark' ? '#71717A' : '#94A3B8';
 
   const load = async () => {
     setLoading(true);
@@ -48,9 +52,9 @@ export default function SavingsPage() {
   const CustomTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
     return (
-      <div className="bg-white border border-border rounded-xl p-3 shadow-modal text-xs">
+      <div className={`rounded-xl p-3 shadow-modal text-xs border ${theme === 'dark' ? 'bg-panel-dark border-white/10' : 'bg-white border-border'}`}>
         <p className="text-muted mb-1">{label}</p>
-        <p className="font-bold text-primary-dark">{formatCurrency(payload[0]?.value)}</p>
+        <p className="font-bold text-primary-dark dark:text-primary-light">{formatCurrency(payload[0]?.value)}</p>
       </div>
     );
   };
@@ -93,9 +97,9 @@ export default function SavingsPage() {
                     <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 11, fill: '#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: axisColor }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: axisColor }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                 <Tooltip content={<CustomTooltip />} />
                 <Area type="monotone" dataKey="saldo" stroke="#10B981" strokeWidth={2.5} fill="url(#saldoGrad)" dot={false} />
               </AreaChart>
@@ -106,8 +110,8 @@ export default function SavingsPage() {
 
       {/* Histórico */}
       <Card padding={false}>
-        <div className="px-5 py-4 border-b border-border">
-          <h3 className="font-semibold text-slate-900">Histórico de Movimentações</h3>
+        <div className="px-5 py-4 border-b border-border dark:border-white/[0.06]">
+          <h3 className="font-semibold text-slate-900 dark:text-zinc-50">Histórico de Movimentações</h3>
         </div>
         {loading ? <div className="p-5 space-y-3">{Array.from({length:4}).map((_,i)=><div key={i} className="h-10 shimmer-bg rounded-xl" />)}</div>
           : data.transactions.length === 0
@@ -115,21 +119,21 @@ export default function SavingsPage() {
             : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-subtle/60"><tr>
+                  <thead className="bg-subtle/60 dark:bg-white/[0.03]"><tr>
                     {['Tipo','Valor','Saldo após','Data','Observação'].map(h=>(
                       <th key={h} className="table-header">{h}</th>
                     ))}
                   </tr></thead>
-                  <tbody className="divide-y divide-border/60">
+                  <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                     {data.transactions.map((t) => (
-                      <tr key={t.id} className="hover:bg-subtle/40 transition-colors">
+                      <tr key={t.id} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
                         <td className="table-cell">
                           <Badge variant={t.type==='deposit'?'success':'danger'}>{t.type==='deposit'?'Depósito':'Retirada'}</Badge>
                         </td>
-                        <td className={`table-cell font-mono tabular-nums font-bold ${t.type==='deposit'?'text-primary-dark':'text-danger-dark'}`}>
+                        <td className={`table-cell font-mono tabular-nums font-bold ${t.type==='deposit'?'text-primary-dark dark:text-primary-light':'text-danger-dark dark:text-danger-light'}`}>
                           {t.type==='deposit'?'+':'-'}{formatCurrency(t.value)}
                         </td>
-                        <td className="table-cell font-mono tabular-nums text-slate-600">{formatCurrency(t.balanceAfter)}</td>
+                        <td className="table-cell font-mono tabular-nums text-slate-600 dark:text-zinc-400">{formatCurrency(t.balanceAfter)}</td>
                         <td className="table-cell text-muted">{formatShortDate(t.transactionDate)}</td>
                         <td className="table-cell text-muted">{t.observation ?? '—'}</td>
                       </tr>

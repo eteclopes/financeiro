@@ -3,6 +3,7 @@ import { useMonthStore } from '../../store/monthStore';
 import { useThemeStore } from '../../store/themeStore';
 import { useAuthStore } from '../../store/authStore';
 import { formatMonthLabel } from '../../lib/format';
+import { Dropdown } from '../ui/Dropdown';
 import { IconMenu, IconSearch, IconBell, IconSun, IconMoon, IconChevronL, IconChevronR } from '../icons';
 
 export function Topbar({ title }) {
@@ -50,12 +51,11 @@ export function Topbar({ title }) {
             <IconChevronL size={14} />
           </button>
 
-          <select value={selectedId ?? ''} onChange={(e) => selectMonth(e.target.value)}
-            className="text-sm font-semibold text-slate-900 dark:text-zinc-50 bg-transparent border-0 outline-none cursor-pointer px-1 max-w-[140px]">
+          <Dropdown variant="ghost" value={selectedId ?? ''} onChange={(e) => selectMonth(e.target.value)} className="max-w-[140px]">
             {months.map((m) => (
-              <option key={m.id} value={m.id} className="text-slate-900">{formatMonthLabel(m)}</option>
+              <option key={m.id} value={m.id}>{formatMonthLabel(m)}</option>
             ))}
-          </select>
+          </Dropdown>
 
           <button onClick={() => goToAdjacent(1)} disabled={idx >= months.length - 1}
             className="h-6 w-6 flex items-center justify-center rounded-lg text-muted hover:text-slate-700 hover:bg-white dark:hover:bg-white/10 dark:hover:text-zinc-100 disabled:opacity-30 transition-all">

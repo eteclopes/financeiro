@@ -5,6 +5,7 @@ import { historyApi } from '../lib/services';
 import { formatCurrency } from '../lib/format';
 import { Card, CardHeader, Badge, Skeleton, TabGroup } from '../components/ui/index';
 import { useUIStore } from '../store/uiStore';
+import { useThemeStore } from '../store/themeStore';
 
 const PERIOD_TABS = [
   { value: 3,  label: '3 meses'  },
@@ -12,11 +13,12 @@ const PERIOD_TABS = [
   { value: 12, label: '12 meses' },
 ];
 
-const CustomTooltip = ({ active, payload, label }) => {
+function CustomTooltip({ active, payload, label }) {
+  const theme = useThemeStore((s) => s.theme);
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-border rounded-xl p-3 shadow-modal text-xs">
-      <p className="font-semibold text-slate-700 mb-2">{label}</p>
+    <div className={`rounded-xl p-3 shadow-modal text-xs border ${theme === 'dark' ? 'bg-panel-dark border-white/10' : 'bg-white border-border'}`}>
+      <p className="font-semibold text-slate-700 dark:text-zinc-300 mb-2">{label}</p>
       {payload.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-2 mb-1">
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
@@ -26,7 +28,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       ))}
     </div>
   );
-};
+}
 
 export default function HistoryPage() {
   const selectedMonthId = useMonthStore((s) => s.selectedMonthId);
@@ -34,6 +36,9 @@ export default function HistoryPage() {
   const [data, setData]       = useState(null);
   const [loading, setLoading] = useState(true);
   const toast = useUIStore((s) => s);
+  const theme = useThemeStore((s) => s.theme);
+  const gridStroke = theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#F1F5F9';
+  const axisColor  = theme === 'dark' ? '#71717A' : '#94A3B8';
 
   const load = useCallback(async () => {
     if (!selectedMonthId) return;
@@ -65,7 +70,7 @@ export default function HistoryPage() {
     <div className="space-y-5 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="font-bold text-xl text-slate-900">Histórico Financeiro</h2>
+          <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Histórico Financeiro</h2>
           <p className="text-sm text-muted mt-0.5">Comparação e evolução ao longo do tempo</p>
         </div>
         <TabGroup tabs={PERIOD_TABS} value={period} onChange={setPeriod} />
@@ -100,9 +105,9 @@ export default function HistoryPage() {
             <div className="h-56">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={chartData} margin={{ left: -20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                  <XAxis dataKey="name" tick={{ fontSize:11, fill:'#94A3B8' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize:11, fill:'#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                  <XAxis dataKey="name" tick={{ fontSize:11, fill:axisColor }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize:11, fill:axisColor }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend wrapperStyle={{ fontSize: '12px' }} />
                   <Bar dataKey="receita"  fill="#10B981" radius={[4,4,0,0]} barSize={16} />
@@ -119,9 +124,9 @@ export default function HistoryPage() {
               <div className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ left: -20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize:10, fill:'#94A3B8' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize:10, fill:'#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize:10, fill:axisColor }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize:10, fill:axisColor }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                     <Tooltip content={<CustomTooltip />} />
                     <Line type="monotone" dataKey="líquido" stroke="#3B82F6" strokeWidth={2.5} dot={{ r:3, fill:'#3B82F6' }} />
                   </LineChart>
@@ -135,9 +140,9 @@ export default function HistoryPage() {
                 <div className="h-44">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={healthData} margin={{ left: -20 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                      <XAxis dataKey="name" tick={{ fontSize:10, fill:'#94A3B8' }} axisLine={false} tickLine={false} />
-                      <YAxis domain={[0,100]} tick={{ fontSize:10, fill:'#94A3B8' }} axisLine={false} tickLine={false} />
+                      <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                      <XAxis dataKey="name" tick={{ fontSize:10, fill:axisColor }} axisLine={false} tickLine={false} />
+                      <YAxis domain={[0,100]} tick={{ fontSize:10, fill:axisColor }} axisLine={false} tickLine={false} />
                       <Tooltip formatter={(v) => `${v} pts`} />
                       <Line type="monotone" dataKey="saúde" stroke="#10B981" strokeWidth={2.5} dot={{ r:3, fill:'#10B981' }} />
                     </LineChart>
@@ -154,25 +159,25 @@ export default function HistoryPage() {
 
           {/* Tabela mês a mês */}
           <Card padding={false}>
-            <div className="px-5 py-4 border-b border-border">
-              <h3 className="font-semibold text-slate-900">Resumo Mês a Mês</h3>
+            <div className="px-5 py-4 border-b border-border dark:border-white/[0.06]">
+              <h3 className="font-semibold text-slate-900 dark:text-zinc-50">Resumo Mês a Mês</h3>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-subtle/60"><tr>
+                <thead className="bg-subtle/60 dark:bg-white/[0.03]"><tr>
                   {['Mês','Receita','Despesas pagas','Dívidas','Saldo líquido','Saúde','Status'].map(h=><th key={h} className="table-header">{h}</th>)}
                 </tr></thead>
-                <tbody className="divide-y divide-border/60">
+                <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                   {[...months].reverse().map((m) => (
-                    <tr key={`${m.month}-${m.year}`} className="hover:bg-subtle/40 transition-colors">
-                      <td className="table-cell font-semibold">{String(m.month).padStart(2,'0')}/{m.year}</td>
-                      <td className="table-cell font-mono tabular-nums text-primary-dark font-medium">{formatCurrency(m.income)}</td>
-                      <td className="table-cell font-mono tabular-nums text-danger-dark">{formatCurrency(m.paidExpenses)}</td>
-                      <td className="table-cell font-mono tabular-nums text-warning-dark">{formatCurrency(m.debtInstallments)}</td>
-                      <td className={`table-cell font-mono tabular-nums font-bold ${m.netBalance >= 0 ? 'text-primary-dark' : 'text-danger-dark'}`}>{formatCurrency(m.netBalance)}</td>
+                    <tr key={`${m.month}-${m.year}`} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
+                      <td className="table-cell font-semibold text-slate-800 dark:text-zinc-200">{String(m.month).padStart(2,'0')}/{m.year}</td>
+                      <td className="table-cell font-mono tabular-nums text-primary-dark dark:text-primary-light font-medium">{formatCurrency(m.income)}</td>
+                      <td className="table-cell font-mono tabular-nums text-danger-dark dark:text-danger-light">{formatCurrency(m.paidExpenses)}</td>
+                      <td className="table-cell font-mono tabular-nums text-warning-dark dark:text-warning-light">{formatCurrency(m.debtInstallments)}</td>
+                      <td className={`table-cell font-mono tabular-nums font-bold ${m.netBalance >= 0 ? 'text-primary-dark dark:text-primary-light' : 'text-danger-dark dark:text-danger-light'}`}>{formatCurrency(m.netBalance)}</td>
                       <td className="table-cell">
                         {m.healthScore != null
-                          ? <span className={`font-mono font-bold text-base ${m.healthScore>=75?'text-primary-dark':m.healthScore>=50?'text-warning-dark':'text-danger-dark'}`}>{m.healthScore}</span>
+                          ? <span className={`font-mono font-bold text-base ${m.healthScore>=75?'text-primary-dark dark:text-primary-light':m.healthScore>=50?'text-warning-dark dark:text-warning-light':'text-danger-dark dark:text-danger-light'}`}>{m.healthScore}</span>
                           : <span className="text-muted">—</span>}
                       </td>
                       <td className="table-cell">

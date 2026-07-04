@@ -40,7 +40,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-5 max-w-2xl animate-fade-in">
-      <h2 className="font-bold text-xl text-slate-900">Configurações</h2>
+      <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Configurações</h2>
 
       {/* Perfil */}
       <Card>
@@ -50,7 +50,7 @@ export default function SettingsPage() {
             {user?.name?.[0]?.toUpperCase() ?? 'U'}
           </div>
           <div>
-            <p className="font-bold text-slate-900 text-lg">{user?.name}</p>
+            <p className="font-bold text-slate-900 dark:text-zinc-50 text-lg">{user?.name}</p>
             <p className="text-sm text-muted">{user?.email}</p>
             <Badge variant="success" className="mt-1.5">Conta ativa</Badge>
           </div>
@@ -60,7 +60,7 @@ export default function SettingsPage() {
       {/* Senha */}
       <Card>
         <CardHeader title="Alterar Senha" subtitle="A troca exige verificação por e-mail por segurança." />
-        <div className="bg-info-subtle border border-info/20 rounded-xl p-4 text-sm text-info-dark mb-4">
+        <div className="bg-info-subtle dark:bg-info/10 border border-info/20 rounded-xl p-4 text-sm text-info-dark dark:text-info-light mb-4">
           ℹ Para alterar sua senha, use a opção <strong>"Esqueci minha senha"</strong> na tela de login. Um link de redefinição será enviado para <strong>{user?.email}</strong>.
         </div>
         <Button variant="outline" onClick={() => window.location.href = '/forgot-password'}>
@@ -72,10 +72,10 @@ export default function SettingsPage() {
       <Card>
         <CardHeader title="Categorias Personalizadas" />
 
-        <div className="flex gap-1 bg-subtle p-1 rounded-xl w-fit mb-5">
+        <div className="flex gap-1 bg-subtle dark:bg-white/5 p-1 rounded-xl w-fit mb-5">
           {[['expense','Despesas'],['income','Receitas']].map(([t,l]) => (
             <button key={t} onClick={() => setCatType(t)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${catType===t?'bg-white shadow text-slate-900':'text-muted hover:text-slate-700'}`}>
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${catType===t?'bg-white dark:bg-panel-dark shadow text-slate-900 dark:text-zinc-50':'text-muted hover:text-slate-700 dark:hover:text-zinc-200'}`}>
               {l}
             </button>
           ))}
@@ -93,13 +93,13 @@ export default function SettingsPage() {
         {/* Suas categorias */}
         {userCats.length > 0 && (
           <div className="mb-5">
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Suas categorias</p>
+            <p className="text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">Suas categorias</p>
             <div className="flex flex-wrap gap-2">
               {userCats.map((cat) => (
-                <div key={cat.id} className="flex items-center gap-1 bg-subtle border border-border rounded-xl pl-3 pr-1.5 py-1.5">
-                  <span className="text-sm text-slate-700 font-medium">{cat.name}</span>
+                <div key={cat.id} className="flex items-center gap-1 bg-subtle dark:bg-white/[0.04] border border-border dark:border-white/10 rounded-xl pl-3 pr-1.5 py-1.5">
+                  <span className="text-sm text-slate-700 dark:text-zinc-300 font-medium">{cat.name}</span>
                   <button onClick={() => deleteCategory(cat.id)}
-                    className="h-5 w-5 rounded-lg hover:bg-danger-muted text-muted hover:text-danger flex items-center justify-center text-sm transition-colors ml-1">
+                    className="h-5 w-5 rounded-lg hover:bg-danger-muted dark:hover:bg-danger/15 text-muted hover:text-danger flex items-center justify-center text-sm transition-colors ml-1">
                     ×
                   </button>
                 </div>
@@ -110,10 +110,10 @@ export default function SettingsPage() {
 
         {/* Categorias padrão */}
         <div>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Categorias padrão do sistema</p>
+          <p className="text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">Categorias padrão do sistema</p>
           <div className="flex flex-wrap gap-2">
             {defaultCats.map((cat) => (
-              <span key={cat.id} className="text-xs bg-white border border-border text-muted px-3 py-1.5 rounded-xl font-medium">
+              <span key={cat.id} className="text-xs bg-white dark:bg-panel-dark border border-border dark:border-white/10 text-muted px-3 py-1.5 rounded-xl font-medium">
                 {cat.name}
               </span>
             ))}

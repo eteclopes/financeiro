@@ -6,11 +6,11 @@ import {
 import { useMonthStore } from '../store/monthStore';
 import { dashboardApi, projectionsApi } from '../lib/services';
 import { formatCurrency, formatShortDate } from '../lib/format';
-import { Card, CardHeader, Badge, ProgressBar, StatCard, Skeleton, EmptyState } from '../components/ui/index';
+import { Card, CardHeader, Badge, ProgressBar, Skeleton, EmptyState } from '../components/ui/index';
 import { useUIStore } from '../store/uiStore';
 import { useThemeStore } from '../store/themeStore';
 import { QuickActions } from '../components/dashboard/QuickActions';
-import { IconUp, IconScale, IconWallet, IconPiggy, IconAlert } from '../components/icons';
+import { IconWallet, IconPiggy, IconAlert } from '../components/icons';
 
 const COMMITMENT_COLOR = { saudavel: 'text-primary-dark dark:text-primary-light', atencao: 'text-warning-dark dark:text-warning-light', risco: 'text-warning-dark dark:text-warning-light', critico: 'text-danger-dark dark:text-danger-light' };
 const COMMITMENT_BG    = { saudavel: 'bg-primary-muted dark:bg-primary/10', atencao: 'bg-warning-muted dark:bg-warning/10', risco: 'bg-warning-muted dark:bg-warning/10', critico: 'bg-danger-muted dark:bg-danger/10' };
@@ -74,8 +74,13 @@ export default function DashboardPage() {
   if (!selectedMonthId || loading) {
     return (
       <div className="space-y-5 animate-pulse">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
+        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-4">
+          <Skeleton className="h-40 rounded-3xl" />
+          <div className="grid grid-cols-2 gap-3">
+            <Skeleton className="h-20 rounded-2xl" />
+            <Skeleton className="h-20 rounded-2xl" />
+            <Skeleton className="h-20 rounded-2xl col-span-2" />
+          </div>
         </div>
         <Skeleton className="h-14 rounded-2xl" />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -122,15 +127,60 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-5 animate-fade-in">
-      {/* Métricas principais */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <StatCard label="Receita Total"   value={formatCurrency(data.incomeTotal)}      tone="positive" icon={<IconUp size={15} />} />
-        <StatCard label="Saldo Atual"     value={formatCurrency(data.currentBalance)}   tone={data.currentBalance   >= 0 ? 'positive' : 'negative'} icon={<IconScale size={15} />} />
-        <StatCard label="Saldo Projetado" value={formatCurrency(data.projectedBalance)} tone={data.projectedBalance >= 0 ? 'positive' : 'negative'} icon={<IconUp size={15} />}
-          spark={projData.length > 1 ? projData.map((p) => p.acumulado) : undefined} />
-        <StatCard label="Reserva"         value={formatCurrency(data.savingsBalance)}   tone="neutral" icon={<IconPiggy size={15} />} />
-        <StatCard label="Dinheiro Físico" value={formatCurrency(data.physicalCash)}     tone="neutral" icon={<IconWallet size={15} />} />
-        <StatCard label="Dívida Ativa"    value={formatCurrency(data.totalActiveDebt)}  tone={data.totalActiveDebt > 0 ? 'negative' : 'neutral'} icon={<IconAlert size={15} />} />
+      {/* Saldo em destaque + demais valores */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-4">
+        {/* Hero: saldo atual */}
+        <div className={`relative overflow-hidden rounded-3xl p-6 text-white shadow-premium dark:shadow-premium-dark animate-fade-in
+          ${data.currentBalance >= 0 ? 'bg-gradient-to-br from-primary to-primary-dark' : 'bg-gradient-to-br from-danger to-danger-dark'}`}>
+          <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/[0.08]" />
+          <div className="absolute -bottom-16 -left-8 w-32 h-32 rounded-full bg-white/[0.06]" />
+          <div className="relative">
+            <p className="text-white/80 text-sm font-medium mb-1">Saldo atual</p>
+            <p className="text-4xl font-bold font-mono tabular-nums tracking-tight">{formatCurrency(data.currentBalance)}</p>
+            <div className="flex items-center gap-6 mt-4">
+              <div>
+                <p className="text-white/65 text-[11px] font-medium uppercase tracking-wide">Receita total</p>
+                <p className="text-base font-semibold font-mono mt-0.5">{formatCurrency(data.incomeTotal)}</p>
+              </div>
+              <div className="w-px h-9 bg-white/15" />
+              <div>
+                <p className="text-white/65 text-[11px] font-medium uppercase tracking-wide">Projetado</p>
+                <p className="text-base font-semibold font-mono mt-0.5">{formatCurrency(data.projectedBalance)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Grade 2x2: reserva, físico, dívida */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white dark:bg-panel-dark border border-border dark:border-white/[0.06] rounded-2xl p-4 shadow-card dark:shadow-premium-dark">
+            <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <IconPiggy size={13} /> Reserva
+            </p>
+            <p className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-zinc-50">{formatCurrency(data.savingsBalance)}</p>
+          </div>
+          <div className="bg-white dark:bg-panel-dark border border-border dark:border-white/[0.06] rounded-2xl p-4 shadow-card dark:shadow-premium-dark">
+            <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <IconWallet size={13} /> Físico
+            </p>
+            <p className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-zinc-50">{formatCurrency(data.physicalCash)}</p>
+          </div>
+          <div className="col-span-2 bg-white dark:bg-panel-dark border border-border dark:border-white/[0.06] rounded-2xl p-4 shadow-card dark:shadow-premium-dark flex items-center justify-between">
+            <div>
+              <p className="text-[11px] font-semibold text-muted uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <IconAlert size={13} /> Dívida ativa
+              </p>
+              <p className={`text-lg font-bold font-mono tabular-nums ${data.totalActiveDebt > 0 ? 'text-danger-dark dark:text-danger-light' : 'text-slate-900 dark:text-zinc-50'}`}>
+                {formatCurrency(data.totalActiveDebt)}
+              </p>
+            </div>
+            {data.totalActiveDebt > 0 && (
+              <span className="text-[11px] font-semibold bg-danger-subtle dark:bg-danger/10 text-danger-dark dark:text-danger-light px-2.5 py-1 rounded-full">
+                {(data.upcomingDueDates ?? []).filter((e) => e.type === 'priority').length} parcela(s)
+              </span>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Ações Rápidas */}

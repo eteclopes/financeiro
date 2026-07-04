@@ -6,6 +6,7 @@ import { formatCurrency } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState } from '../components/ui/index';
 import { FormGroup, Input, Select } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
+import { useThemeStore } from '../store/themeStore';
 
 const SCENARIO_TYPES = [
   { value:'pay_debt',            label:'🏦 Quitar dívida' },
@@ -16,11 +17,12 @@ const SCENARIO_TYPES = [
   { value:'increase_income',     label:'📈 Aumentar receita' },
 ];
 
-const CustomTooltip = ({ active, payload, label }) => {
+function CustomTooltip({ active, payload, label }) {
+  const theme = useThemeStore((s) => s.theme);
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-white border border-border rounded-xl p-3 shadow-modal text-xs">
-      <p className="font-semibold text-slate-600 mb-2">{label}</p>
+    <div className={`rounded-xl p-3 shadow-modal text-xs border ${theme === 'dark' ? 'bg-panel-dark border-white/10' : 'bg-white border-border'}`}>
+      <p className="font-semibold text-slate-600 dark:text-zinc-300 mb-2">{label}</p>
       {payload.map((p) => (
         <div key={p.dataKey} className="flex items-center gap-2 mb-1">
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
@@ -30,7 +32,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       ))}
     </div>
   );
-};
+}
 
 export default function WhatIfSimulatorPage() {
   const selectedMonthId = useMonthStore((s) => s.selectedMonthId);
@@ -44,6 +46,9 @@ export default function WhatIfSimulatorPage() {
   const [saving, setSaving]     = useState(false);
   const [loadingSaved, setLoadingSaved] = useState(true);
   const toast = useUIStore((s) => s);
+  const theme = useThemeStore((s) => s.theme);
+  const gridStroke = theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#F1F5F9';
+  const axisColor  = theme === 'dark' ? '#71717A' : '#94A3B8';
 
   useEffect(() => {
     debtsApi.list().then((r) => setDebts(r.data.debts ?? [])).catch(() => {});
@@ -132,7 +137,7 @@ export default function WhatIfSimulatorPage() {
   return (
     <div className="space-y-5 animate-fade-in">
       <div>
-        <h2 className="font-bold text-xl text-slate-900">Simulador "E Se?"</h2>
+        <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Simulador "E Se?"</h2>
         <p className="text-sm text-muted mt-0.5">Projete cenários alternativos sem alterar seus dados reais.</p>
       </div>
 
@@ -166,7 +171,7 @@ export default function WhatIfSimulatorPage() {
               </Card>
               <Card className="!p-4">
                 <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-1">Primeiro impacto</p>
-                <p className="text-base font-bold text-slate-900 mt-1">
+                <p className="text-base font-bold text-slate-900 dark:text-zinc-50 mt-1">
                   {result.firstPositiveMonth
                     ? `${String(result.firstPositiveMonth.month).padStart(2,'0')}/${result.firstPositiveMonth.year}`
                     : 'Imediato'}
@@ -190,9 +195,9 @@ export default function WhatIfSimulatorPage() {
                         <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize:10, fill:'#94A3B8' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize:10, fill:'#94A3B8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} vertical={false} />
+                    <XAxis dataKey="name" tick={{ fontSize:10, fill:axisColor }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize:10, fill:axisColor }} axisLine={false} tickLine={false} tickFormatter={(v) => `${(v/1000).toFixed(0)}k`} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend wrapperStyle={{ fontSize:'12px' }} />
                     <Area type="monotone" dataKey="atual" stroke="#94A3B8" strokeWidth={2} fill="url(#atualGrad)" strokeDasharray="4 2" dot={false} />
@@ -213,7 +218,7 @@ export default function WhatIfSimulatorPage() {
           <Card className="flex items-center justify-center !py-16">
             <div className="text-center">
               <div className="text-5xl mb-4 opacity-20">◈</div>
-              <p className="font-semibold text-slate-700">Configure e simule</p>
+              <p className="font-semibold text-slate-700 dark:text-zinc-300">Configure e simule</p>
               <p className="text-sm text-muted mt-1">Escolha o cenário e clique em Simular</p>
             </div>
           </Card>
@@ -233,9 +238,9 @@ export default function WhatIfSimulatorPage() {
               const lastResult = sim.results?.[sim.results.length - 1];
               const gain = lastResult ? Number(lastResult.difference) : 0;
               return (
-                <div key={sim.id} className="flex items-center justify-between p-3.5 bg-subtle rounded-xl">
+                <div key={sim.id} className="flex items-center justify-between p-3.5 bg-subtle dark:bg-white/[0.04] rounded-xl">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{sim.name}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-zinc-50">{sim.name}</p>
                     <p className="text-xs text-muted mt-0.5">
                       {SCENARIO_TYPES.find((t) => t.value === sim.type)?.label ?? sim.type} · {sim.monthsAhead} meses
                     </p>

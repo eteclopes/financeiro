@@ -94,8 +94,8 @@ export default function IncomesPage() {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-bold text-xl text-slate-900">Receitas</h2>
-          <p className="text-sm text-muted mt-0.5">Total: <span className="font-mono font-bold text-primary-dark">{formatCurrency(total)}</span></p>
+          <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Receitas</h2>
+          <p className="text-sm text-muted mt-0.5">Total: <span className="font-mono font-bold text-primary-dark dark:text-primary-light">{formatCurrency(total)}</span></p>
         </div>
         <Button onClick={openCreate}>+ Nova Receita</Button>
       </div>
@@ -110,17 +110,17 @@ export default function IncomesPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-subtle/60">
+              <thead className="bg-subtle/60 dark:bg-white/[0.03]">
                 <tr>{['Descrição','Categoria','Valor','Data','Forma','Origem','Recorrente',''].map(h=>(
                   <th key={h} className="table-header">{h}</th>
                 ))}</tr>
               </thead>
-              <tbody className="divide-y divide-border/60">
+              <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                 {incomes.map((inc) => (
-                  <tr key={inc.id} className="hover:bg-subtle/40 transition-colors">
-                    <td className="table-cell font-semibold text-slate-800">{inc.description}</td>
+                  <tr key={inc.id} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
+                    <td className="table-cell font-semibold text-slate-800 dark:text-zinc-200">{inc.description}</td>
                     <td className="table-cell text-muted">{inc.category?.name}</td>
-                    <td className="table-cell font-mono tabular-nums font-bold text-primary-dark">{formatCurrency(inc.value)}</td>
+                    <td className="table-cell font-mono tabular-nums font-bold text-primary-dark dark:text-primary-light">{formatCurrency(inc.value)}</td>
                     <td className="table-cell text-muted">{formatShortDate(inc.incomeDate)}</td>
                     <td className="table-cell"><Badge>{PM_LABELS[inc.paymentMethod] ?? inc.paymentMethod}</Badge></td>
                     <td className="table-cell"><Badge variant={inc.origin==='physical'?'warning':'info'}>{inc.origin==='physical'?'Físico':'Digital'}</Badge></td>
@@ -178,7 +178,7 @@ export default function IncomesPage() {
             <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
               <input type="checkbox" checked={form.recurring} onChange={(e) => setForm({...form,recurring:e.target.checked})} className="w-4 h-4 rounded accent-primary" />
               <div>
-                <span className="font-medium text-slate-700">Receita recorrente</span>
+                <span className="font-medium text-slate-700 dark:text-zinc-300">Receita recorrente</span>
                 <p className="text-xs text-muted">Será gerada automaticamente todo mês ao fechar o período</p>
               </div>
             </label>
