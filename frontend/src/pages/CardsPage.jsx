@@ -3,6 +3,7 @@ import { cardsApi, categoriesApi } from '../lib/services';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState, ProgressBar } from '../components/ui/index';
 import { Modal, FormGroup, Input, Select } from '../components/ui/Modal';
+import { CategorySelect } from '../components/ui/CategorySelect';
 import { useUIStore } from '../store/uiStore';
 
 const COLORS = ['#10B981','#3B82F6','#F59E0B','#EF4444','#8B5CF6','#06B6D4','#EC4899'];
@@ -217,10 +218,13 @@ export default function CardsPage() {
         <div className="space-y-4">
           <FormGroup label="Descrição" required><Input value={purchaseForm.description} onChange={(e) => setPurchaseForm({...purchaseForm,description:e.target.value})} placeholder="Ex: Tênis, Notebook..." autoFocus /></FormGroup>
           <FormGroup label="Categoria">
-            <Select value={purchaseForm.categoryId} onChange={(e) => setPurchaseForm({...purchaseForm,categoryId:e.target.value})}>
-              <option value="">Selecione...</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            <CategorySelect
+              value={purchaseForm.categoryId}
+              onChange={(e) => setPurchaseForm({...purchaseForm,categoryId:e.target.value})}
+              categories={categories}
+              type="expense"
+              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+            />
           </FormGroup>
           <div className="grid grid-cols-3 gap-3">
             <FormGroup label="Valor total" required><Input type="number" min="0" step="0.01" value={purchaseForm.totalValue} onChange={(e) => setPurchaseForm({...purchaseForm,totalValue:e.target.value})} /></FormGroup>

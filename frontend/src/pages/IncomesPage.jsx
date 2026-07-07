@@ -4,6 +4,7 @@ import { incomesApi, categoriesApi } from '../lib/services';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, Badge, Button, EmptyState, Skeleton } from '../components/ui/index';
 import { Modal, ConfirmDialog, FormGroup, Input, Select } from '../components/ui/Modal';
+import { CategorySelect } from '../components/ui/CategorySelect';
 import { useUIStore } from '../store/uiStore';
 
 const PM_LABELS = { cash:'Dinheiro', pix:'PIX', debit:'Débito', credit:'Crédito', transfer:'Transferência' };
@@ -153,10 +154,13 @@ export default function IncomesPage() {
             </FormGroup>
           </div>
           <FormGroup label="Categoria" required>
-            <Select value={form.categoryId} onChange={(e) => setForm({...form,categoryId:e.target.value})}>
-              <option value="">Selecione...</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            <CategorySelect
+              value={form.categoryId}
+              onChange={(e) => setForm({...form,categoryId:e.target.value})}
+              categories={categories}
+              type="income"
+              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+            />
           </FormGroup>
           <div className="grid grid-cols-2 gap-3">
             <FormGroup label="Forma de recebimento">

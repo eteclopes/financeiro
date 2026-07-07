@@ -4,6 +4,7 @@ import { expensesApi, debtsApi, categoriesApi } from '../lib/services';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, Badge, Button, EmptyState, Skeleton, TabGroup } from '../components/ui/index';
 import { Modal, ConfirmDialog, FormGroup, Input, Select } from '../components/ui/Modal';
+import { CategorySelect } from '../components/ui/CategorySelect';
 import { useUIStore } from '../store/uiStore';
 
 const PM_LABELS = { cash:'Dinheiro', pix:'PIX', debit:'Débito', credit:'Crédito', transfer:'Transferência' };
@@ -395,10 +396,13 @@ export default function ExpensesPage() {
             </FormGroup>
           </div>
           <FormGroup label="Categoria">
-            <Select value={varForm.categoryId} onChange={(e) => setVarForm({...varForm,categoryId:e.target.value})}>
-              <option value="">Selecione...</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            <CategorySelect
+              value={varForm.categoryId}
+              onChange={(e) => setVarForm({...varForm,categoryId:e.target.value})}
+              categories={categories}
+              type="expense"
+              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+            />
           </FormGroup>
           <FormGroup label="Forma de pagamento">
             <Select value={varForm.paymentMethod} onChange={(e) => setVarForm({...varForm,paymentMethod:e.target.value})}>
@@ -434,10 +438,13 @@ export default function ExpensesPage() {
             </FormGroup>
           </div>
           <FormGroup label="Categoria">
-            <Select value={fixForm.categoryId} onChange={(e) => setFixForm({...fixForm,categoryId:e.target.value})}>
-              <option value="">Selecione...</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            <CategorySelect
+              value={fixForm.categoryId}
+              onChange={(e) => setFixForm({...fixForm,categoryId:e.target.value})}
+              categories={categories}
+              type="expense"
+              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+            />
           </FormGroup>
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="outline" onClick={() => setFixModal(false)}>Cancelar</Button>
@@ -477,10 +484,13 @@ export default function ExpensesPage() {
             <Input value={debtForm.description} onChange={(e) => setDebtForm({...debtForm,description:e.target.value})} placeholder="Ex: Empréstimo, Financiamento..." autoFocus />
           </FormGroup>
           <FormGroup label="Categoria">
-            <Select value={debtForm.categoryId} onChange={(e) => setDebtForm({...debtForm,categoryId:e.target.value})}>
-              <option value="">Selecione...</option>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            <CategorySelect
+              value={debtForm.categoryId}
+              onChange={(e) => setDebtForm({...debtForm,categoryId:e.target.value})}
+              categories={categories}
+              type="expense"
+              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+            />
           </FormGroup>
           <div className="grid grid-cols-3 gap-3">
             <FormGroup label="Valor total" required>
@@ -523,9 +533,13 @@ export default function ExpensesPage() {
             <Input value={editDebtForm.description} onChange={(e) => setEditDebtForm({...editDebtForm,description:e.target.value})} />
           </FormGroup>
           <FormGroup label="Categoria">
-            <Select value={editDebtForm.categoryId} onChange={(e) => setEditDebtForm({...editDebtForm,categoryId:e.target.value})}>
-              {categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
+            <CategorySelect
+              value={editDebtForm.categoryId}
+              onChange={(e) => setEditDebtForm({...editDebtForm,categoryId:e.target.value})}
+              categories={categories}
+              type="expense"
+              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+            />
           </FormGroup>
           <FormGroup label="Dia de vencimento">
             <Input type="number" min="1" max="31" value={editDebtForm.dueDay} onChange={(e) => setEditDebtForm({...editDebtForm,dueDay:e.target.value})} />
