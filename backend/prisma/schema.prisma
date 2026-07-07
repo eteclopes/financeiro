@@ -9,7 +9,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -178,8 +178,8 @@ model Category {
 model Month {
   id        BigInt      @id @default(autoincrement())
   userId    BigInt      @map("user_id")
-  month     Int         @db.UnsignedTinyInt
-  year      Int         @db.UnsignedSmallInt
+  month     Int         @db.SmallInt
+  year      Int         @db.SmallInt
   status    MonthStatus @default(open)
   closedAt  DateTime?   @map("closed_at")
   createdAt DateTime    @default(now()) @map("created_at")
@@ -244,7 +244,7 @@ model FixedExpenseTemplate {
   description String   @db.VarChar(160)
   categoryId  BigInt   @map("category_id")
   value       Decimal  @db.Decimal(12, 2)
-  dueDay      Int      @map("due_day") @db.UnsignedTinyInt
+  dueDay      Int      @map("due_day") @db.SmallInt
   active      Boolean  @default(true)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -262,10 +262,10 @@ model Debt {
   description        String     @db.VarChar(160)
   categoryId         BigInt     @map("category_id")
   totalValue         Decimal    @map("total_value") @db.Decimal(12, 2)
-  installmentsCount  Int        @map("installments_count") @db.UnsignedSmallInt
+  installmentsCount  Int        @map("installments_count") @db.SmallInt
   installmentValue   Decimal    @map("installment_value") @db.Decimal(12, 2)
   flexiblePayment    Boolean    @default(false) @map("flexible_payment")
-  dueDay             Int        @map("due_day") @db.UnsignedTinyInt
+  dueDay             Int        @map("due_day") @db.SmallInt
   status             DebtStatus @default(active)
   remainingBalance   Decimal    @map("remaining_balance") @db.Decimal(12, 2)
   pendingCarryOver   Decimal    @default(0) @map("pending_carry_over") @db.Decimal(12, 2)
@@ -286,8 +286,8 @@ model Card {
   name        String   @db.VarChar(80)
   color       String   @default("#6366F1") @db.VarChar(20)
   limitValue  Decimal  @map("limit_value") @db.Decimal(12, 2)
-  closingDay  Int      @map("closing_day") @db.UnsignedTinyInt
-  dueDay      Int      @map("due_day") @db.UnsignedTinyInt
+  closingDay  Int      @map("closing_day") @db.SmallInt
+  dueDay      Int      @map("due_day") @db.SmallInt
   active      Boolean  @default(true)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
@@ -306,7 +306,7 @@ model CardPurchase {
   description       String   @db.VarChar(160)
   categoryId        BigInt   @map("category_id")
   totalValue        Decimal  @map("total_value") @db.Decimal(12, 2)
-  installmentsCount Int      @default(1) @map("installments_count") @db.UnsignedSmallInt
+  installmentsCount Int      @default(1) @map("installments_count") @db.SmallInt
   installmentValue  Decimal  @map("installment_value") @db.Decimal(12, 2)
   purchaseDate      DateTime @map("purchase_date") @db.Date
   createdAt         DateTime @default(now()) @map("created_at")
@@ -324,8 +324,8 @@ model CardInvoice {
   id              BigInt            @id @default(autoincrement())
   cardId          BigInt            @map("card_id")
   monthId         BigInt            @map("month_id")
-  referenceMonth  Int               @map("reference_month") @db.UnsignedTinyInt
-  referenceYear   Int               @map("reference_year") @db.UnsignedSmallInt
+  referenceMonth  Int               @map("reference_month") @db.SmallInt
+  referenceYear   Int               @map("reference_year") @db.SmallInt
   closingDate     DateTime          @map("closing_date") @db.Date
   dueDate         DateTime          @map("due_date") @db.Date
   totalValue      Decimal           @default(0) @map("total_value") @db.Decimal(12, 2)
@@ -447,7 +447,7 @@ model FinancialHealthScore {
   id            BigInt   @id @default(autoincrement())
   userId        BigInt   @map("user_id")
   monthId       BigInt   @unique @map("month_id")
-  score         Int      @db.UnsignedTinyInt
+  score         Int      @db.SmallInt
   breakdownJson Json     @map("breakdown_json")
   createdAt     DateTime @default(now()) @map("created_at")
 
@@ -479,7 +479,7 @@ model Simulation {
   type        SimulationType
   name        String         @db.VarChar(160)
   inputJson   Json           @map("input_json")
-  monthsAhead Int            @default(12) @map("months_ahead") @db.UnsignedSmallInt
+  monthsAhead Int            @default(12) @map("months_ahead") @db.SmallInt
   createdAt   DateTime       @default(now()) @map("created_at")
 
   user    User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -492,9 +492,9 @@ model Simulation {
 model SimulationResult {
   id           BigInt   @id @default(autoincrement())
   simulationId BigInt   @map("simulation_id")
-  monthIndex   Int      @map("month_index") @db.UnsignedSmallInt
-  month        Int      @db.UnsignedTinyInt
-  year         Int      @db.UnsignedSmallInt
+  monthIndex   Int      @map("month_index") @db.SmallInt
+  month        Int      @db.SmallInt
+  year         Int      @db.SmallInt
   baselineNet  Decimal  @map("baseline_net") @db.Decimal(12, 2)
   scenarioNet  Decimal  @map("scenario_net") @db.Decimal(12, 2)
   difference   Decimal  @db.Decimal(12, 2)

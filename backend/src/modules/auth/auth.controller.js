@@ -7,8 +7,11 @@ const REFRESH_COOKIE_NAME = 'refresh_token';
 function refreshCookieOptions() {
   return {
     httpOnly: true,
+    // Em produção o frontend (Vercel) e o backend (Render) ficam em domínios
+    // diferentes, então o cookie precisa ser cross-site: sameSite 'none' exige
+    // secure true (só funciona em HTTPS, que é o caso em produção).
     secure: env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    sameSite: env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/api/auth',
     maxAge: env.JWT_REFRESH_EXPIRES_IN_DAYS * 24 * 60 * 60 * 1000,
   };
