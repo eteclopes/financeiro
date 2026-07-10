@@ -2,6 +2,7 @@ const prisma = require('../../config/prisma');
 const AppError = require('../../utils/AppError');
 const monthsService = require('../months/months.service');
 const expensesService = require('../expenses/expenses.service');
+const { recordAuditLog } = require('../auditLog/auditLog.service');
 
 function round2(value) {
   return Math.round(value * 100) / 100;
@@ -67,6 +68,10 @@ async function createDebt(userId, payload) {
     });
 
     return { debt, expense };
+  }).then(async (result) => {
+    // Depois do commit — nunca dentro da transação (ver auditLog.service.js).
+    await recordAuditLog(userId, 'debt', result.debt.id, 'create', { newValue: result.debt });
+    return result;
   });
 }
 
@@ -154,6 +159,9 @@ async function updateDebt(userId, debtId, payload) {
     }
 
     return updated;
+  }).then(async (updated) => {
+    await recordAuditLog(userId, 'debt', debtId, 'update', { oldValue: debt, newValue: updated });
+    return updated;
   });
 }
 
@@ -177,6 +185,9 @@ async function deleteDebt(userId, debtId) {
     });
 
     return tx.debt.update({ where: { id: debtId }, data: { status: 'settled' } });
+  }).then(async (updated) => {
+    await recordAuditLog(userId, 'debt', debtId, 'delete', { oldValue: debt, newValue: updated });
+    return updated;
   });
 }
 

@@ -1,5 +1,6 @@
 const prisma = require('../../config/prisma');
 const AppError = require('../../utils/AppError');
+const { recordAuditLog } = require('../auditLog/auditLog.service');
 
 function round2(value) {
   return Math.round(value * 100) / 100;
@@ -21,31 +22,61 @@ async function listTransactions(userId) {
 }
 
 async function deposit(userId, { value, date, observation }) {
-  const currentBalance = await getCurrentBalance(userId);
-  const balanceAfter = round2(currentBalance + value);
+  // Sem lock, duas chamadas concorrentes (duplo clique, retry de rede) podem
+  // ler o mesmo currentBalance e gravar dois balanceAfter incorretos (lost
+  // update) — mesma classe de bug que closing.service.js já trava com
+  // `FOR UPDATE`. Aqui não há uma linha "de saldo" para travar (o saldo é
+  // derivado da última transação), então usamos um lock consultivo por
+  // usuário: serializa apenas depósitos/saques do MESMO usuário entre si e
+  // é liberado automaticamente ao fim da transação.
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${userId})`;
 
-  // O depósito sai do "bolso" do mês corrente — por isso conta como saída
-  // ao calcular o saldo atual do mês em que a movimentação ocorreu (ver
-  // dashboard.service.js), senão o dinheiro existiria duplicado: no saldo
-  // atual E no saldo guardado ao mesmo tempo.
-  return prisma.savingsTransaction.create({
-    data: { userId, type: 'deposit', value, transactionDate: date, observation, balanceAfter },
+    const last = await tx.savingsTransaction.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const currentBalance = last ? Number(last.balanceAfter) : 0;
+    const balanceAfter = round2(currentBalance + value);
+
+    // O depósito sai do "bolso" do mês corrente — por isso conta como saída
+    // ao calcular o saldo atual do mês em que a movimentação ocorreu (ver
+    // dashboard.service.js), senão o dinheiro existiria duplicado: no saldo
+    // atual E no saldo guardado ao mesmo tempo.
+    return tx.savingsTransaction.create({
+      data: { userId, type: 'deposit', value, transactionDate: date, observation, balanceAfter },
+    });
+  }).then(async (created) => {
+    await recordAuditLog(userId, 'savingsTransaction', created.id, 'deposit', { newValue: created });
+    return created;
   });
 }
 
 async function withdraw(userId, { value, date, observation }) {
-  const currentBalance = await getCurrentBalance(userId);
-  if (value > currentBalance + 0.009) {
-    throw new AppError(
-      `Saldo guardado insuficiente. Disponível: R$ ${currentBalance.toFixed(2)}.`,
-      409,
-      'INSUFFICIENT_SAVINGS_BALANCE'
-    );
-  }
-  const balanceAfter = round2(currentBalance - value);
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${userId})`;
 
-  return prisma.savingsTransaction.create({
-    data: { userId, type: 'withdraw', value, transactionDate: date, observation, balanceAfter },
+    const last = await tx.savingsTransaction.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    const currentBalance = last ? Number(last.balanceAfter) : 0;
+
+    if (value > currentBalance + 0.009) {
+      throw new AppError(
+        `Saldo guardado insuficiente. Disponível: R$ ${currentBalance.toFixed(2)}.`,
+        409,
+        'INSUFFICIENT_SAVINGS_BALANCE'
+      );
+    }
+    const balanceAfter = round2(currentBalance - value);
+
+    return tx.savingsTransaction.create({
+      data: { userId, type: 'withdraw', value, transactionDate: date, observation, balanceAfter },
+    });
+  }).then(async (created) => {
+    await recordAuditLog(userId, 'savingsTransaction', created.id, 'withdraw', { newValue: created });
+    return created;
   });
 }
 

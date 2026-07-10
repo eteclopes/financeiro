@@ -1,6 +1,6 @@
 const prisma = require('../../config/prisma');
+const AppError = require('../../utils/AppError');
 const monthsService = require('../months/months.service');
-const debtsService = require('../debts/debts.service');
 const {
   getProjectionComponents,
   mergeComponentsIntoSeries,
@@ -152,7 +152,11 @@ async function listSimulations(userId) {
 
 async function deleteSimulation(userId, simulationId) {
   const sim = await prisma.simulation.findFirst({ where: { id: simulationId, userId } });
-  if (!sim) throw new Error('Simulação não encontrada.');
+  // Antes: `throw new Error(...)`. Como Error genérico não é `instanceof
+  // AppError`, o errorHandler tratava isso como falha inesperada e
+  // respondia 500 (e logava como erro real) em vez de 404 — para o caso
+  // absolutamente esperado de "simulação não existe ou não é sua".
+  if (!sim) throw new AppError('Simulação não encontrada.', 404, 'SIMULATION_NOT_FOUND');
   await prisma.simulation.delete({ where: { id: simulationId } });
 }
 

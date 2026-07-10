@@ -33,7 +33,9 @@ export function Topbar({ title }) {
       <div className="hidden md:flex items-center flex-1 max-w-xs ml-2">
         <div className="relative w-full">
           <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <label htmlFor="topbar-search" className="sr-only">Pesquisar</label>
           <input
+            id="topbar-search"
             type="text"
             placeholder="Pesquisar..."
             className="w-full bg-subtle/70 dark:bg-white/5 border border-transparent focus:border-primary/40 rounded-xl pl-9 pr-3 py-2 text-sm
@@ -46,7 +48,7 @@ export function Topbar({ title }) {
 
       {month && (
         <div className="flex items-center gap-1 bg-subtle dark:bg-white/5 border border-border dark:border-white/10 rounded-xl px-2 py-1.5">
-          <button onClick={() => goToAdjacent(-1)} disabled={idx <= 0}
+          <button onClick={() => goToAdjacent(-1)} disabled={idx <= 0} aria-label="Mês anterior"
             className="h-6 w-6 flex items-center justify-center rounded-lg text-muted hover:text-slate-700 hover:bg-white dark:hover:bg-white/10 dark:hover:text-zinc-100 disabled:opacity-30 transition-all">
             <IconChevronL size={14} />
           </button>
@@ -57,7 +59,7 @@ export function Topbar({ title }) {
             ))}
           </Dropdown>
 
-          <button onClick={() => goToAdjacent(1)} disabled={idx >= months.length - 1}
+          <button onClick={() => goToAdjacent(1)} disabled={idx >= months.length - 1} aria-label="Próximo mês"
             className="h-6 w-6 flex items-center justify-center rounded-lg text-muted hover:text-slate-700 hover:bg-white dark:hover:bg-white/10 dark:hover:text-zinc-100 disabled:opacity-30 transition-all">
             <IconChevronR size={14} />
           </button>

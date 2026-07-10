@@ -32,17 +32,38 @@ async function getBehavioralAnalysis(userId, monthId, periods = 6) {
 
   const sliceIds = slice.map((m) => m.id);
 
-  // ---- Receita e despesa por mês ----
-  const [incomeByMonth, expenseByMonth] = await Promise.all([
-    Promise.all(sliceIds.map((id) =>
-      prisma.income.aggregate({ where: { monthId: id, userId }, _sum: { value: true } })
-        .then((r) => Number(r._sum.value ?? 0))
-    )),
-    Promise.all(sliceIds.map((id) =>
-      prisma.expense.aggregate({ where: { monthId: id, userId, deletedAt: null }, _sum: { value: true } })
-        .then((r) => Number(r._sum.value ?? 0))
-    )),
+  // Antes: 1 aggregate() por mês, POR série (receita, despesa, cartão,
+  // dívida) — com periods=12 isso chegava a ~36-48 queries individuais
+  // numa única requisição. Agora: 1 groupBy por série, sempre, não importa
+  // quantos períodos — mesma técnica que expensesByCategory já usava logo
+  // abaixo, só não tinha sido aplicada aqui.
+  function seriesFromGroupBy(rows, ids) {
+    const byMonth = new Map(rows.map((r) => [String(r.monthId), Number(r._sum.value ?? 0)]));
+    return ids.map((id) => byMonth.get(String(id)) ?? 0);
+  }
+
+  const [incomeRows, expenseRows, cardExpenseRows, debtExpenseRows] = await Promise.all([
+    prisma.income.groupBy({ by: ['monthId'], where: { userId, monthId: { in: sliceIds } }, _sum: { value: true } }),
+    prisma.expense.groupBy({
+      by: ['monthId'],
+      where: { userId, monthId: { in: sliceIds }, deletedAt: null },
+      _sum: { value: true },
+    }),
+    prisma.expense.groupBy({
+      by: ['monthId'],
+      where: { userId, monthId: { in: sliceIds }, type: 'card', deletedAt: null },
+      _sum: { value: true },
+    }),
+    prisma.expense.groupBy({
+      by: ['monthId'],
+      where: { userId, monthId: { in: sliceIds }, type: 'priority', deletedAt: null },
+      _sum: { value: true },
+    }),
   ]);
+
+  // ---- Receita e despesa por mês ----
+  const incomeByMonth = seriesFromGroupBy(incomeRows, sliceIds);
+  const expenseByMonth = seriesFromGroupBy(expenseRows, sliceIds);
 
   const incomeTrend = linearTrend(incomeByMonth);
   const expenseTrend = linearTrend(expenseByMonth);
@@ -83,23 +104,14 @@ async function getBehavioralAnalysis(userId, monthId, periods = 6) {
   }).sort((a, b) => (b.growthPercent ?? -Infinity) - (a.growthPercent ?? -Infinity));
 
   // ---- Dependência de cartão ----
-  const cardExpenseByMonth = await Promise.all(sliceIds.map((id) =>
-    prisma.expense.aggregate({ where: { userId, monthId: id, type: 'card', deletedAt: null }, _sum: { value: true } })
-      .then((r) => Number(r._sum.value ?? 0))
-  ));
+  const cardExpenseByMonth = seriesFromGroupBy(cardExpenseRows, sliceIds);
   const cardDependency = expenseByMonth.map((total, i) =>
     total > 0 ? round2((cardExpenseByMonth[i] / total) * 100) : 0
   );
   const cardDepTrend = linearTrend(cardDependency);
 
   // ---- Evolução do endividamento ----
-  const debtBalancesByMonth = await Promise.all(slice.map(async (m) => {
-    const agg = await prisma.expense.aggregate({
-      where: { userId, monthId: m.id, type: 'priority', deletedAt: null },
-      _sum: { value: true },
-    });
-    return Number(agg._sum.value ?? 0);
-  }));
+  const debtBalancesByMonth = seriesFromGroupBy(debtExpenseRows, sliceIds);
   const debtTrend = linearTrend(debtBalancesByMonth);
 
   // ---- Detecção de anomalias: mês com gasto > média + 1.5×desvio padrão ----

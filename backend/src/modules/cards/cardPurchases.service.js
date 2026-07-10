@@ -4,6 +4,7 @@ const monthsService = require('../months/months.service');
 const expensesService = require('../expenses/expenses.service');
 const cardsService = require('./cards.service');
 const { addMonths } = require('../../utils/monthMath');
+const { recordAuditLog } = require('../auditLog/auditLog.service');
 
 function round2(value) {
   return Math.round(value * 100) / 100;
@@ -61,16 +62,6 @@ async function createCardPurchase(userId, payload) {
   }
   await expensesService.assertCategoryIsValid(userId, payload.categoryId);
 
-  const usedLimit = await cardsService.computeUsedLimit(card.id);
-  const availableLimit = Number(card.limitValue) - usedLimit;
-  if (payload.totalValue > availableLimit + 0.009) {
-    throw new AppError(
-      `Limite insuficiente. Disponível: R$ ${availableLimit.toFixed(2)}.`,
-      409,
-      'INSUFFICIENT_LIMIT'
-    );
-  }
-
   const { installmentsCount, totalValue } = payload;
   const nominal = round2(totalValue / installmentsCount);
   const base = firstInvoiceReference(payload.purchaseDate, card.closingDay);
@@ -87,6 +78,24 @@ async function createCardPurchase(userId, payload) {
   }
 
   return prisma.$transaction(async (tx) => {
+    // Antes, o limite era checado FORA da transação: duas compras
+    // simultâneas no mesmo cartão podiam ler o mesmo usedLimit e passar na
+    // checagem juntas, ultrapassando o limite em conjunto (TOCTOU). O lock
+    // consultivo por cartão serializa apenas compras do MESMO cartão entre
+    // si — não bloqueia nenhuma outra linha/tabela — e é liberado
+    // automaticamente ao fim da transação.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${card.id})`;
+
+    const usedLimit = await cardsService.computeUsedLimit(card.id, tx);
+    const availableLimit = Number(card.limitValue) - usedLimit;
+    if (totalValue > availableLimit + 0.009) {
+      throw new AppError(
+        `Limite insuficiente. Disponível: R$ ${availableLimit.toFixed(2)}.`,
+        409,
+        'INSUFFICIENT_LIMIT'
+      );
+    }
+
     const purchase = await tx.cardPurchase.create({
       data: {
         userId,
@@ -135,7 +144,10 @@ async function createCardPurchase(userId, payload) {
     }
 
     return { purchase, expenses };
+  }).then(async (result) => {
+    await recordAuditLog(userId, 'cardPurchase', result.purchase.id, 'create', { newValue: result.purchase });
+    return result;
   });
 }
 
-module.exports = { createCardPurchase };
+module.exports = { createCardPurchase, firstInvoiceReference, clampDay };

@@ -4,6 +4,7 @@ const monthsService = require('../months/months.service');
 const expensesService = require('../expenses/expenses.service');
 const debtsService = require('../debts/debts.service');
 const { addMonths } = require('../../utils/monthMath');
+const { recordAuditLog } = require('../auditLog/auditLog.service');
 
 /**
  * Resumo exibido antes do fechamento, para confirmação do usuário.
@@ -138,6 +139,9 @@ async function closeMonth(userId, monthId) {
       nextMonth,
       generated,
     };
+  }).then(async (result) => {
+    await recordAuditLog(userId, 'month', monthId, 'close', { newValue: result.closedMonth });
+    return result;
   });
 }
 

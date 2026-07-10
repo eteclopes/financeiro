@@ -1,17 +1,55 @@
-import { useEffect } from 'react';
+import { useEffect, useId, useRef } from 'react';
 import { Button } from './index';
 import { Dropdown } from './Dropdown';
 
 // ── Modal ──────────────────────────────────────────────────
 export function Modal({ open, onClose, title, children, size = 'md' }) {
+  const titleId = useId();
+  const panelRef = useRef(null);
+  const previouslyFocused = useRef(null);
+
   useEffect(() => {
     if (!open) return;
-    const handler = (e) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e) => {
+      if (e.key === 'Escape') { onClose(); return; }
+      // Trap de foco simples: Tab/Shift+Tab não devem "vazar" para elementos
+      // atrás do modal (o overlay cobre a tela, mas não impede foco via
+      // teclado sem isto). Antes, um usuário de teclado/leitor de tela podia
+      // dar Tab e sair do modal sem fechar — agora o foco circula só dentro
+      // do painel.
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusable = panelRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
     document.addEventListener('keydown', handler);
     document.body.style.overflow = 'hidden';
+
+    // Move o foco para dentro do modal ao abrir — sem isso, quem navega por
+    // teclado/leitor de tela continua "focado" no botão que abriu o modal,
+    // agora coberto pelo overlay. Guarda quem estava focado para devolver o
+    // foco exatamente ali quando o modal fechar.
+    previouslyFocused.current = document.activeElement;
+    const toFocus = panelRef.current?.querySelector(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    (toFocus ?? panelRef.current)?.focus();
+
     return () => {
       document.removeEventListener('keydown', handler);
       document.body.style.overflow = '';
+      previouslyFocused.current?.focus?.();
     };
   }, [open, onClose]);
 
@@ -21,10 +59,16 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div className="absolute inset-0 bg-slate-900/50 dark:bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onClose} />
-      <div className={`relative bg-white dark:bg-panel-dark w-full ${sizes[size]} rounded-t-3xl sm:rounded-2xl shadow-modal flex flex-col max-h-[90vh] animate-slide-up`}>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className={`relative bg-white dark:bg-panel-dark w-full ${sizes[size]} rounded-t-3xl sm:rounded-2xl shadow-modal flex flex-col max-h-[90vh] animate-slide-up`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border dark:border-white/[0.06] shrink-0">
-          <h2 className="font-semibold text-slate-900 dark:text-zinc-50">{title}</h2>
-          <button onClick={onClose}
+          <h2 id={titleId} className="font-semibold text-slate-900 dark:text-zinc-50">{title}</h2>
+          <button onClick={onClose} aria-label="Fechar"
             className="h-8 w-8 flex items-center justify-center rounded-lg text-muted hover:text-slate-700 hover:bg-subtle dark:hover:bg-white/5 dark:hover:text-zinc-100 transition-colors text-xl leading-none">
             ×
           </button>
@@ -58,7 +102,7 @@ export function FormGroup({ label, htmlFor, error, children, required, hint }) {
         {hint && <span className="text-muted font-normal ml-1 text-xs">({hint})</span>}
       </label>
       {children}
-      {error && <p className="mt-1.5 text-xs text-danger flex items-center gap-1">⚠ {error}</p>}
+      {error && <p role="alert" className="mt-1.5 text-xs text-danger flex items-center gap-1">⚠ {error}</p>}
     </div>
   );
 }

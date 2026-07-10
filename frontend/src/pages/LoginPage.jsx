@@ -30,6 +30,7 @@ export default function LoginPage() {
           <input id="email" type="email" required value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="voce@email.com"
+            autoComplete="email"
             className="w-full bg-white/10 border border-white/20 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
         </FormGroup>
 
@@ -37,11 +38,12 @@ export default function LoginPage() {
           <input id="password" type="password" required value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
+            autoComplete="current-password"
             className="w-full bg-white/10 border border-white/20 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
         </FormGroup>
 
         {error && (
-          <div className="bg-danger/20 border border-danger/30 text-red-300 text-sm px-4 py-3 rounded-xl">
+          <div role="alert" className="bg-danger/20 border border-danger/30 text-red-300 text-sm px-4 py-3 rounded-xl">
             {error}
           </div>
         )}

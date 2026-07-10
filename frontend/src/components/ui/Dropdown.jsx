@@ -32,6 +32,10 @@ export function Dropdown({ value, onChange, children, className = '', placeholde
   // placement: 'down' (padrão) ou 'up', decidido dinamicamente conforme o
   // espaço livre acima/abaixo do botão no momento em que a lista abre.
   const [pos, setPos] = useState(null); // { top|bottom, left, width, maxHeight, placement }
+  // Índice da opção realçada por teclado — separado de `value` porque o
+  // usuário pode navegar com as setas sem ainda ter confirmado (Enter) uma
+  // escolha diferente da atual.
+  const [highlightedIndex, setHighlightedIndex] = useState(-1);
   const triggerRef = useRef(null);
   const listRef = useRef(null);
   const listId = useId();
@@ -128,6 +132,81 @@ export function Dropdown({ value, onChange, children, className = '', placeholde
     setOpen(false);
   }
 
+  function firstEnabledIndex() {
+    return options.findIndex((o) => !o.disabled);
+  }
+
+  function lastEnabledIndex() {
+    for (let i = options.length - 1; i >= 0; i -= 1) {
+      if (!options[i].disabled) return i;
+    }
+    return -1;
+  }
+
+  function nextEnabledIndex(from, delta) {
+    if (options.length === 0) return -1;
+    let i = from;
+    for (let step = 0; step < options.length; step += 1) {
+      i = (i + delta + options.length) % options.length;
+      if (!options[i].disabled) return i;
+    }
+    return from;
+  }
+
+  // Ao abrir via teclado/clique, realça a opção selecionada (ou a primeira
+  // habilitada) — sem isso, a navegação por seta sempre começaria "do zero".
+  function openAt(baseIndex) {
+    const selectedIndex = options.findIndex((o) => String(o.value) === String(value));
+    setHighlightedIndex(baseIndex ?? (selectedIndex >= 0 ? selectedIndex : firstEnabledIndex()));
+    setOpen(true);
+  }
+
+  function handleTriggerKeyDown(e) {
+    if (disabled) return;
+    if (!open) {
+      if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key)) {
+        e.preventDefault();
+        openAt();
+      }
+      return;
+    }
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setHighlightedIndex((i) => nextEnabledIndex(i, 1));
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setHighlightedIndex((i) => nextEnabledIndex(i, -1));
+        break;
+      case 'Home':
+        e.preventDefault();
+        setHighlightedIndex(firstEnabledIndex());
+        break;
+      case 'End':
+        e.preventDefault();
+        setHighlightedIndex(lastEnabledIndex());
+        break;
+      case 'Enter':
+      case ' ':
+        e.preventDefault();
+        if (highlightedIndex >= 0 && !options[highlightedIndex]?.disabled) {
+          pick(options[highlightedIndex].value);
+        }
+        break;
+      default:
+        break;
+    }
+  }
+
+  // Mantém a opção realçada visível ao navegar por teclado (a lista é
+  // menor que a tela toda quando há muitas opções).
+  useEffect(() => {
+    if (!open || highlightedIndex < 0 || !listRef.current) return;
+    const el = listRef.current.children[highlightedIndex];
+    el?.scrollIntoView?.({ block: 'nearest' });
+  }, [open, highlightedIndex]);
+
   const triggerClass = variant === 'ghost'
     ? 'flex items-center justify-between gap-1.5 text-left cursor-pointer text-sm font-semibold text-slate-900 dark:text-zinc-50 bg-transparent px-1 py-0.5 rounded-lg hover:bg-black/[0.03] dark:hover:bg-white/[0.06] transition-colors'
     : 'input-base flex items-center justify-between gap-2 text-left cursor-pointer disabled:cursor-not-allowed';
@@ -140,7 +219,10 @@ export function Dropdown({ value, onChange, children, className = '', placeholde
         disabled={disabled}
         aria-haspopup="listbox"
         aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        aria-controls={listId}
+        aria-activedescendant={open && highlightedIndex >= 0 ? `${listId}-opt-${highlightedIndex}` : undefined}
+        onClick={() => (open ? setOpen(false) : openAt())}
+        onKeyDown={handleTriggerKeyDown}
         className={triggerClass}
       >
         <span className={`truncate ${!selected && variant !== 'ghost' ? 'text-slate-400 dark:text-zinc-500' : ''}`}>
@@ -177,19 +259,24 @@ export function Dropdown({ value, onChange, children, className = '', placeholde
           {options.length === 0 && (
             <li className="px-3.5 py-2 text-sm text-muted">Nenhuma opção</li>
           )}
-          {options.map((o) => {
+          {options.map((o, index) => {
             const isSelected = String(o.value) === String(value);
+            const isHighlighted = index === highlightedIndex;
             return (
               <li
                 key={String(o.value)}
+                id={`${listId}-opt-${index}`}
                 role="option"
                 aria-selected={isSelected}
+                onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => !o.disabled && pick(o.value)}
                 className={`px-3.5 py-2 text-sm cursor-pointer transition-colors duration-100 truncate
                   ${o.disabled ? 'opacity-40 cursor-not-allowed' : ''}
                   ${isSelected
                     ? 'bg-primary-subtle dark:bg-primary/15 text-primary-dark dark:text-primary-light font-medium'
-                    : 'text-slate-700 dark:text-zinc-200 hover:bg-subtle dark:hover:bg-white/5'}`}
+                    : isHighlighted
+                      ? 'bg-subtle dark:bg-white/5 text-slate-700 dark:text-zinc-200'
+                      : 'text-slate-700 dark:text-zinc-200 hover:bg-subtle dark:hover:bg-white/5'}`}
               >
                 {o.label}
               </li>

@@ -2,12 +2,20 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../../config/prisma');
 const env = require('../../config/env');
 const AppError = require('../../utils/AppError');
+const { recordAuditLog } = require('../auditLog/auditLog.service');
 const {
   hashToken, generateOpaqueToken, signAccessToken,
   refreshTokenExpiryDate, passwordResetExpiryDate,
 } = require('../../utils/tokens');
 
 const BCRYPT_ROUNDS = 12;
+
+// Hash bcrypt válido mas "morto" (nenhuma senha real corresponde a ele).
+// Usado apenas para igualar o tempo de resposta do login quando o e-mail não
+// existe — sem isso, `!user` retorna em ~1ms enquanto um e-mail existente
+// gasta ~100ms+ em bcrypt.compare, e essa diferença de tempo permite
+// enumerar e-mails cadastrados mesmo com uma mensagem de erro genérica.
+const DUMMY_PASSWORD_HASH = '$2a$12$RXUW.qmEXBzInhTZlg2mM.VsSzXz7.mx2Ym7fdqSQc5iXHat1EaKC';
 
 function publicUser(user) {
   return { id: user.id, name: user.name, email: user.email, createdAt: user.createdAt };
@@ -42,6 +50,9 @@ async function register({ name, email, password }) {
   if (existing) throw new AppError('Este e-mail já está cadastrado.', 409, 'EMAIL_IN_USE');
   const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
   const user = await prisma.user.create({ data: { name, email, passwordHash } });
+  // Depois de commitar — nunca dentro da criação: um bug no audit log não
+  // pode impedir a conta de ser criada (ver auditLog.service.js).
+  await recordAuditLog(user.id, 'user', user.id, 'register', { newValue: { name, email } });
   const session = await issueSession(user.id);
   return { user: publicUser(user), ...session };
 }
@@ -49,8 +60,14 @@ async function register({ name, email, password }) {
 async function login({ email, password }) {
   const user = await prisma.user.findUnique({ where: { email } });
   const err = new AppError('E-mail ou senha inválidos.', 401, 'INVALID_CREDENTIALS');
-  if (!user) throw err;
-  if (!await bcrypt.compare(password, user.passwordHash)) throw err;
+
+  // bcrypt.compare SEMPRE roda, mesmo quando o e-mail não existe (contra o
+  // hash "morto" acima) — mantém o tempo de resposta constante e evita
+  // enumeração de e-mails cadastrados por diferença de tempo.
+  const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? DUMMY_PASSWORD_HASH);
+  if (!user || !passwordMatches) throw err;
+
+  await recordAuditLog(user.id, 'user', user.id, 'login');
   const session = await issueSession(user.id);
   return { user: publicUser(user), ...session };
 }
@@ -79,6 +96,7 @@ async function forgotPassword(email) {
   await prisma.passwordReset.create({
     data: { userId: user.id, tokenHash: hashToken(rawToken), expiresAt: passwordResetExpiryDate() },
   });
+  await recordAuditLog(user.id, 'user', user.id, 'password_reset_requested');
   // TODO: disparar e-mail real aqui (Resend, SendGrid, Amazon SES)
   // SÓ retorna token em development explícito — nunca em production/undefined
   const devToken = env.NODE_ENV === 'development' ? rawToken : null;
@@ -97,6 +115,7 @@ async function resetPassword({ token, password }) {
     prisma.passwordReset.update({ where: { id: rec.id }, data: { usedAt: new Date() } }),
     prisma.refreshToken.updateMany({ where: { userId: rec.userId, revokedAt: null }, data: { revokedAt: new Date() } }),
   ]);
+  await recordAuditLog(rec.userId, 'user', rec.userId, 'password_reset_completed');
 }
 
 async function me(userId) {

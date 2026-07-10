@@ -58,7 +58,7 @@ export function Sidebar() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden space-y-5">
+        <nav aria-label="Navegação principal" className="flex-1 px-3 py-4 overflow-y-auto overflow-x-hidden space-y-5">
           {GROUPS.map((group) => {
             const items = NAV.filter((n) => n.group === group.key);
             return (

@@ -44,10 +44,11 @@ export default function ForgotPasswordPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="voce@email.com" className={inputClass} />
+          <label htmlFor="email" className="sr-only">E-mail</label>
+          <input id="email" name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+            placeholder="voce@email.com" autoComplete="email" className={inputClass} />
           {result?.success === false && (
-            <div className="bg-danger/20 border border-danger/30 text-red-300 text-sm px-4 py-3 rounded-xl">{result.message}</div>
+            <div role="status" className="bg-danger/20 border border-danger/30 text-red-300 text-sm px-4 py-3 rounded-xl">{result.message}</div>
           )}
           <Button type="submit" loading={loading} className="w-full justify-center py-3">Enviar instruções</Button>
           <p className="text-center text-sm">

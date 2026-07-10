@@ -142,12 +142,11 @@ async function gatherMetrics(userId, monthId) {
     prisma.goal.findMany({ where: { userId, status: 'active' }, include: { contributions: true } }),
   ]);
 
-  const cards = await Promise.all(
-    cardsRaw.map(async (card) => {
-      const usedLimit = await cardsService.computeUsedLimit(card.id);
-      return { limitValue: card.limitValue, usedLimit };
-    })
-  );
+  const usedLimitByCard = await cardsService.computeUsedLimitsByCard(cardsRaw.map((c) => c.id));
+  const cards = cardsRaw.map((card) => ({
+    limitValue: card.limitValue,
+    usedLimit: usedLimitByCard.get(String(card.id)) ?? 0,
+  }));
 
   const goals = activeGoals.map((goal) => {
     const progress = goal.contributions.reduce(

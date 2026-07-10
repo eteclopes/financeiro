@@ -297,6 +297,7 @@ model Card {
   cardPurchases CardPurchase[]
   cardInvoices  CardInvoice[]
 
+  @@index([userId])
   @@map("cards")
 }
 
@@ -406,6 +407,7 @@ model Goal {
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   contributions GoalContribution[]
 
+  @@index([userId])
   @@map("goals")
 }
 

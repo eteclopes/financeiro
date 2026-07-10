@@ -42,8 +42,13 @@ async function getDebtInstallmentSchedule(userId, monthsAhead) {
   const debts = await prisma.debt.findMany({ where: { userId, status: 'active' } });
   const schedule = new Array(monthsAhead).fill(0);
 
-  for (const debt of debts) {
-    const debtSchedule = await getSingleDebtSchedule(debt, monthsAhead);
+  // Antes: `for (const debt of debts) { await getSingleDebtSchedule(...) }`
+  // rodava uma dívida de cada vez, em série — com N dívidas ativas, N
+  // round-trips ao banco um atrás do outro. Mesmo cálculo, mesmas queries,
+  // agora disparadas em paralelo (Promise.all) em vez de esperar uma
+  // terminar para começar a próxima.
+  const perDebtSchedules = await Promise.all(debts.map((debt) => getSingleDebtSchedule(debt, monthsAhead)));
+  for (const debtSchedule of perDebtSchedules) {
     for (let i = 0; i < monthsAhead; i += 1) {
       schedule[i] = round2(schedule[i] + debtSchedule[i]);
     }
@@ -90,18 +95,21 @@ async function getActiveRecurringTotals(userId) {
 async function getProjectionComponents(userId, startMonthId, monthsAhead) {
   const startMonth = await monthsService.getMonthOrThrow(userId, startMonthId);
 
-  const [debtSchedule, recurring] = await Promise.all([
+  const months = [];
+  for (let i = 0; i < monthsAhead; i += 1) {
+    months.push(addMonths(startMonth.month, startMonth.year, i));
+  }
+
+  // Antes: `for (...) { cardSchedule.push(await getCardInstallmentsForMonth(...)) }`
+  // — um round-trip ao banco por mês, em série (até 24 seguidos, já que
+  // monthsAhead vai até 24). `addMonths` é puro/síncrono, então dá para
+  // montar `months` inteiro antes e disparar as buscas de cartão em
+  // paralelo, na mesma ordem (Promise.all preserva a ordem do array).
+  const [debtSchedule, recurring, cardSchedule] = await Promise.all([
     getDebtInstallmentSchedule(userId, monthsAhead),
     getActiveRecurringTotals(userId),
+    Promise.all(months.map((ref) => getCardInstallmentsForMonth(userId, ref.month, ref.year))),
   ]);
-
-  const months = [];
-  const cardSchedule = [];
-  for (let i = 0; i < monthsAhead; i += 1) {
-    const ref = addMonths(startMonth.month, startMonth.year, i);
-    months.push(ref);
-    cardSchedule.push(await getCardInstallmentsForMonth(userId, ref.month, ref.year));
-  }
 
   return { startMonth, months, recurringIncome: recurring.income, fixedExpenses: recurring.fixedExpenses, debtSchedule, cardSchedule };
 }

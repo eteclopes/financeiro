@@ -1,6 +1,7 @@
 const prisma = require('../../config/prisma');
 const AppError = require('../../utils/AppError');
 const monthsService = require('../months/months.service');
+const { recordAuditLog } = require('../auditLog/auditLog.service');
 
 function round2(value) {
   return Math.round(value * 100) / 100;
@@ -55,7 +56,9 @@ async function listGoals(userId) {
 }
 
 async function createGoal(userId, payload) {
-  return prisma.goal.create({ data: { userId, ...payload, status: 'active' } });
+  const goal = await prisma.goal.create({ data: { userId, ...payload, status: 'active' } });
+  await recordAuditLog(userId, 'goal', goal.id, 'create', { newValue: goal });
+  return goal;
 }
 
 async function getOwnedGoalOrThrow(userId, goalId) {
@@ -67,8 +70,10 @@ async function getOwnedGoalOrThrow(userId, goalId) {
 }
 
 async function updateGoal(userId, goalId, payload) {
-  await getOwnedGoalOrThrow(userId, goalId);
-  return prisma.goal.update({ where: { id: goalId }, data: payload });
+  const before = await getOwnedGoalOrThrow(userId, goalId);
+  const updated = await prisma.goal.update({ where: { id: goalId }, data: payload });
+  await recordAuditLog(userId, 'goal', goalId, 'update', { oldValue: before, newValue: updated });
+  return updated;
 }
 
 async function contribute(userId, goalId, { monthId, value, date }) {
@@ -126,6 +131,9 @@ async function cancelGoal(userId, goalId, { refundContributions, monthId }) {
     });
 
     return { goal: updatedGoal, refund };
+  }).then(async (result) => {
+    await recordAuditLog(userId, 'goal', goalId, 'cancel', { oldValue: goal, newValue: result.goal });
+    return result;
   });
 }
 

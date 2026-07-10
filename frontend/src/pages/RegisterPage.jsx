@@ -28,12 +28,21 @@ export default function RegisterPage() {
       <p className="text-slate-400 text-sm mb-7">Comece a controlar suas finanças hoje</p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input type="text" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" className={inputClass} />
-        <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" className={inputClass} />
-        <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres (letras e números)" className={inputClass} />
+        <div>
+          <label htmlFor="name" className="sr-only">Nome completo</label>
+          <input id="name" name="name" type="text" required minLength={2} value={name} onChange={(e) => setName(e.target.value)} placeholder="Seu nome" autoComplete="name" className={inputClass} />
+        </div>
+        <div>
+          <label htmlFor="email" className="sr-only">E-mail</label>
+          <input id="email" name="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="voce@email.com" autoComplete="email" className={inputClass} />
+        </div>
+        <div>
+          <label htmlFor="password" className="sr-only">Senha (mínimo 8 caracteres, com letras e números)</label>
+          <input id="password" name="password" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres (letras e números)" autoComplete="new-password" className={inputClass} />
+        </div>
 
         {error && (
-          <div className="bg-danger/20 border border-danger/30 text-red-300 text-sm px-4 py-3 rounded-xl">{error}</div>
+          <div role="alert" className="bg-danger/20 border border-danger/30 text-red-300 text-sm px-4 py-3 rounded-xl">{error}</div>
         )}
 
         <Button type="submit" loading={status === 'loading'} className="w-full justify-center py-3 text-base">

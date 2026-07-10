@@ -27,11 +27,13 @@ export default function ResetPasswordPage() {
       <h1 className="text-2xl font-bold text-white mb-1">Nova senha</h1>
       <p className="text-slate-400 text-sm mb-7">Defina uma senha segura para sua conta</p>
       <form onSubmit={handleSubmit} className="space-y-4">
-        <input type="text" required value={token} onChange={(e) => setToken(e.target.value)}
-          placeholder="Token recebido por e-mail" className={inputClass} />
-        <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)}
-          placeholder="Nova senha (mín. 8 caracteres)" className="w-full bg-white/10 border border-white/20 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
-        {error && <div className="bg-danger/20 border border-danger/30 text-red-300 text-sm px-4 py-3 rounded-xl">{error}</div>}
+        <label htmlFor="token" className="sr-only">Token recebido por e-mail</label>
+        <input id="token" name="token" type="text" required value={token} onChange={(e) => setToken(e.target.value)}
+          placeholder="Token recebido por e-mail" autoComplete="one-time-code" className={inputClass} />
+        <label htmlFor="new-password" className="sr-only">Nova senha (mínimo 8 caracteres)</label>
+        <input id="new-password" name="new-password" type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)}
+          placeholder="Nova senha (mín. 8 caracteres)" autoComplete="new-password" className="w-full bg-white/10 border border-white/20 text-white placeholder:text-slate-500 rounded-xl px-4 py-3 text-sm focus:border-primary focus:ring-2 focus:ring-primary/30 outline-none transition-all" />
+        {error && <div role="alert" className="bg-danger/20 border border-danger/30 text-red-300 text-sm px-4 py-3 rounded-xl">{error}</div>}
         <Button type="submit" loading={loading} className="w-full justify-center py-3">Redefinir senha</Button>
         <p className="text-center text-sm"><Link to="/login" className="text-slate-400 hover:text-slate-300">← Voltar ao login</Link></p>
       </form>

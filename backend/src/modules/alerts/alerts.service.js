@@ -59,12 +59,13 @@ async function gatherContext(userId, monthId) {
     }),
   ]);
 
-  const cards = await Promise.all(
-    cardsRaw.map(async (card) => {
-      const usedLimit = await cardsService.computeUsedLimit(card.id);
-      return { id: card.id, name: card.name, limitValue: Number(card.limitValue), usedLimit };
-    })
-  );
+  const usedLimitByCard = await cardsService.computeUsedLimitsByCard(cardsRaw.map((c) => c.id));
+  const cards = cardsRaw.map((card) => ({
+    id: card.id,
+    name: card.name,
+    limitValue: Number(card.limitValue),
+    usedLimit: usedLimitByCard.get(String(card.id)) ?? 0,
+  }));
 
   const goals = activeGoals.map((goal) => {
     const contributionDates = goal.contributions
