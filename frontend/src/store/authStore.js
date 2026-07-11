@@ -1,11 +1,12 @@
 import { create } from 'zustand';
-import { api, extractErrorMessage } from '../lib/api';
+import { api, extractErrorMessage, extractFieldErrors } from '../lib/api';
 import { setAccessToken } from '../lib/tokenStore';
 
 export const useAuthStore = create((set) => ({
   user: null,
   status: 'idle',
   error: null,
+  fieldErrors: {},
 
   async bootstrap() {
     set({ status: 'loading' });
@@ -21,27 +22,35 @@ export const useAuthStore = create((set) => ({
   },
 
   async login(email, password) {
-    set({ status: 'loading', error: null });
+    set({ status: 'loading', error: null, fieldErrors: {} });
     try {
       const { data } = await api.post('/auth/login', { email, password });
       setAccessToken(data.accessToken);
       set({ user: data.user, status: 'authenticated', error: null });
       return true;
     } catch (error) {
-      set({ status: 'unauthenticated', error: extractErrorMessage(error, 'E-mail ou senha inválidos.') });
+      set({
+        status: 'unauthenticated',
+        error: extractErrorMessage(error, 'E-mail ou senha inválidos.'),
+        fieldErrors: extractFieldErrors(error),
+      });
       return false;
     }
   },
 
   async register(name, email, password) {
-    set({ status: 'loading', error: null });
+    set({ status: 'loading', error: null, fieldErrors: {} });
     try {
       const { data } = await api.post('/auth/register', { name, email, password });
       setAccessToken(data.accessToken);
       set({ user: data.user, status: 'authenticated', error: null });
       return true;
     } catch (error) {
-      set({ status: 'unauthenticated', error: extractErrorMessage(error, 'Não foi possível criar a conta.') });
+      set({
+        status: 'unauthenticated',
+        error: extractErrorMessage(error, 'Não foi possível criar a conta.'),
+        fieldErrors: extractFieldErrors(error),
+      });
       return false;
     }
   },
@@ -57,5 +66,5 @@ export const useAuthStore = create((set) => ({
     set({ user: null, status: 'unauthenticated' });
   },
 
-  clearError() { set({ error: null }); },
+  clearError() { set({ error: null, fieldErrors: {} }); },
 }));

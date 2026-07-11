@@ -57,4 +57,63 @@ async function deleteCategory(userId, categoryId) {
   await prisma.category.delete({ where: { id: categoryId } });
 }
 
-module.exports = { listCategories, createCategory, deleteCategory };
+// Define (ou remove, se null) o orçamento mensal de uma categoria de despesa.
+// Categorias padrão (userId null) também podem ter limite definido pelo
+// usuário — nesse caso criamos uma cópia pessoal da categoria, para não
+// afetar o limite de outros usuários que também usam a categoria padrão.
+async function updateCategoryLimit(userId, categoryId, monthlyLimit) {
+  const category = await prisma.category.findFirst({
+    where: { id: categoryId, type: 'expense', OR: [{ userId: null }, { userId }] },
+  });
+  if (!category) {
+    throw new AppError('Categoria não encontrada.', 404, 'CATEGORY_NOT_FOUND');
+  }
+
+  if (category.userId === null) {
+    // Categoria padrão (compartilhada) — cria/atualiza uma categoria própria
+    // do usuário com o mesmo nome para não vazar o limite para outros.
+    const own = await prisma.category.findFirst({ where: { userId, name: category.name, type: 'expense' } });
+    if (own) {
+      return prisma.category.update({ where: { id: own.id }, data: { monthlyLimit } });
+    }
+    return prisma.category.create({
+      data: { userId, name: category.name, type: 'expense', isDefault: false, monthlyLimit },
+    });
+  }
+
+  return prisma.category.update({ where: { id: categoryId }, data: { monthlyLimit } });
+}
+
+// Retorna, para cada categoria de despesa do usuário com limite definido,
+// quanto já foi gasto no mês informado — base para as barras de progresso
+// de orçamento na tela de Orçamentos.
+async function getBudgetStatus(userId, monthId) {
+  const categories = await prisma.category.findMany({
+    where: { type: 'expense', OR: [{ userId: null }, { userId }], monthlyLimit: { not: null } },
+    orderBy: { name: 'asc' },
+  });
+  if (categories.length === 0) return [];
+
+  const spentRows = await prisma.expense.groupBy({
+    by: ['categoryId'],
+    where: { userId, monthId, deletedAt: null, categoryId: { in: categories.map((c) => c.id) } },
+    _sum: { value: true },
+  });
+  const spentMap = Object.fromEntries(spentRows.map((r) => [String(r.categoryId), Number(r._sum.value ?? 0)]));
+
+  return categories.map((c) => {
+    const spent = spentMap[String(c.id)] ?? 0;
+    const limit = Number(c.monthlyLimit);
+    return {
+      categoryId: String(c.id),
+      categoryName: c.name,
+      monthlyLimit: limit,
+      spent,
+      remaining: Math.round((limit - spent) * 100) / 100,
+      percentUsed: limit > 0 ? Math.round((spent / limit) * 1000) / 10 : 0,
+      exceeded: spent > limit,
+    };
+  });
+}
+
+module.exports = { listCategories, createCategory, deleteCategory, updateCategoryLimit, getBudgetStatus };

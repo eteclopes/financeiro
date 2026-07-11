@@ -25,6 +25,8 @@ export const categoriesApi = {
   list: (type) => api.get('/categories', { params: { type } }),
   create: (data) => api.post('/categories', data),
   delete: (id) => api.delete(`/categories/${id}`),
+  updateLimit: (id, monthlyLimit) => api.patch(`/categories/${id}/limit`, { monthlyLimit }),
+  budgets: (monthId) => api.get('/categories/budgets', { params: { monthId } }),
 };
 
 // ---- Incomes ----
@@ -116,4 +118,14 @@ export const recommendationsApi = {
 // ---- History ----
 export const historyApi = {
   get: (monthId, periods = 6) => api.get('/history', { params: { monthId, periods } }),
+};
+
+// ---- Alerts ----
+export const alertsApi = {
+  list: (monthId) => api.get('/alerts', { params: { monthId } }),
+};
+
+// ---- Behavioral Analysis (Tendências) ----
+export const behavioralAnalysisApi = {
+  get: (monthId, periods = 6) => api.get('/behavioral-analysis', { params: { monthId, periods } }),
 };

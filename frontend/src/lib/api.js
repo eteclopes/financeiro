@@ -50,3 +50,17 @@ api.interceptors.response.use(
 export function extractErrorMessage(error, fallback = 'Algo deu errado. Tente novamente.') {
   return error?.response?.data?.error?.message ?? fallback;
 }
+
+// O backend, quando a validação (Zod) falha, retorna
+// `error.details = { campo: ['mensagem 1', 'mensagem 2'] }` (código 422).
+// Este helper extrai isso num formato fácil de usar nos formulários:
+// `{ campo: 'mensagem 1' }` — pega só a primeira mensagem de cada campo.
+export function extractFieldErrors(error) {
+  const details = error?.response?.data?.error?.details;
+  if (!details || typeof details !== 'object') return {};
+  return Object.fromEntries(
+    Object.entries(details)
+      .filter(([, messages]) => Array.isArray(messages) && messages.length > 0)
+      .map(([field, messages]) => [field, messages[0]])
+  );
+}

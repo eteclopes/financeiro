@@ -161,6 +161,9 @@ model Category {
   name      String       @db.VarChar(80)
   type      CategoryType
   isDefault Boolean      @default(false) @map("is_default")
+  // Orçamento mensal opcional (só faz sentido para categorias de despesa).
+  // Null = sem limite definido, comportamento atual preservado.
+  monthlyLimit Decimal?  @map("monthly_limit") @db.Decimal(12, 2)
   createdAt DateTime     @default(now()) @map("created_at")
 
   user                User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)

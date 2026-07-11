@@ -8,10 +8,22 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
   const panelRef = useRef(null);
   const previouslyFocused = useRef(null);
 
+  // `onClose` normalmente chega como função inline (ex: `onClose={() =>
+  // setModalOpen(false)}`), recriada a cada render do componente pai —
+  // inclusive a cada tecla digitada em um campo do formulário dentro do
+  // modal. Guardamos a versão mais recente numa ref e usamos SÓ `open`
+  // como dependência do efeito abaixo. Sem isso, o efeito (que move o
+  // foco para dentro do modal) rodava de novo a cada digitação, e como
+  // o botão "×" de fechar é o primeiro elemento focável do painel, o
+  // foco "pulava" do campo de texto direto para o botão de fechar a
+  // cada segunda tecla — fazendo o usuário perder o que estava digitando.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; });
+
   useEffect(() => {
     if (!open) return;
     const handler = (e) => {
-      if (e.key === 'Escape') { onClose(); return; }
+      if (e.key === 'Escape') { onCloseRef.current(); return; }
       // Trap de foco simples: Tab/Shift+Tab não devem "vazar" para elementos
       // atrás do modal (o overlay cobre a tela, mas não impede foco via
       // teclado sem isto). Antes, um usuário de teclado/leitor de tela podia
@@ -40,18 +52,22 @@ export function Modal({ open, onClose, title, children, size = 'md' }) {
     // teclado/leitor de tela continua "focado" no botão que abriu o modal,
     // agora coberto pelo overlay. Guarda quem estava focado para devolver o
     // foco exatamente ali quando o modal fechar.
+    // Prioriza um campo de formulário (input/select/textarea) sobre outros
+    // elementos focáveis (como o botão de fechar) — o botão "×" costuma vir
+    // primeiro no DOM, mas o usuário quer digitar, não fechar o modal.
     previouslyFocused.current = document.activeElement;
-    const toFocus = panelRef.current?.querySelector(
+    const formField = panelRef.current?.querySelector('input, select, textarea');
+    const anyFocusable = panelRef.current?.querySelector(
       'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
-    (toFocus ?? panelRef.current)?.focus();
+    (formField ?? anyFocusable ?? panelRef.current)?.focus();
 
     return () => {
       document.removeEventListener('keydown', handler);
       document.body.style.overflow = '';
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   const sizes = { sm: 'max-w-sm', md: 'max-w-md', lg: 'max-w-lg', xl: 'max-w-2xl' };

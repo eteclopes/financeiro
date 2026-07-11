@@ -5,4 +5,9 @@ const createCategorySchema = z.object({
   type: z.enum(['income', 'expense']),
 });
 
-module.exports = { createCategorySchema };
+// Limite mensal: aceita número positivo ou null (para remover o limite).
+const updateCategorySchema = z.object({
+  monthlyLimit: z.number().positive('O limite deve ser maior que zero.').nullable(),
+});
+
+module.exports = { createCategorySchema, updateCategorySchema };

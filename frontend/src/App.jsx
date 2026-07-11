@@ -18,6 +18,9 @@ import GoalsPage           from './pages/GoalsPage';
 import PurchaseSimulatorPage from './pages/PurchaseSimulatorPage';
 import WhatIfSimulatorPage from './pages/WhatIfSimulatorPage';
 import HistoryPage         from './pages/HistoryPage';
+import TrendsPage          from './pages/TrendsPage';
+import BudgetsPage         from './pages/BudgetsPage';
+import InsightsPage        from './pages/InsightsPage';
 import ReportsPage         from './pages/ReportsPage';
 import SettingsPage        from './pages/SettingsPage';
 
@@ -118,6 +121,9 @@ export default function App() {
           <Route path="/simulator/purchase" element={<ErrorBoundary><PurchaseSimulatorPage /></ErrorBoundary>} />
           <Route path="/simulator/what-if"  element={<ErrorBoundary><WhatIfSimulatorPage /></ErrorBoundary>} />
           <Route path="/history"            element={<ErrorBoundary><HistoryPage /></ErrorBoundary>} />
+          <Route path="/trends"             element={<ErrorBoundary><TrendsPage /></ErrorBoundary>} />
+          <Route path="/budgets"            element={<ErrorBoundary><BudgetsPage /></ErrorBoundary>} />
+          <Route path="/insights"           element={<ErrorBoundary><InsightsPage /></ErrorBoundary>} />
           <Route path="/reports"            element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
           <Route path="/settings"           element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
         </Route>

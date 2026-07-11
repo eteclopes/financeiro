@@ -3,6 +3,7 @@ const prisma = require('../../config/prisma');
 const env = require('../../config/env');
 const AppError = require('../../utils/AppError');
 const { recordAuditLog } = require('../auditLog/auditLog.service');
+const { sendPasswordResetEmail } = require('../../utils/mailer');
 const {
   hashToken, generateOpaqueToken, signAccessToken,
   refreshTokenExpiryDate, passwordResetExpiryDate,
@@ -97,8 +98,14 @@ async function forgotPassword(email) {
     data: { userId: user.id, tokenHash: hashToken(rawToken), expiresAt: passwordResetExpiryDate() },
   });
   await recordAuditLog(user.id, 'user', user.id, 'password_reset_requested');
-  // TODO: disparar e-mail real aqui (Resend, SendGrid, Amazon SES)
+
+  const resetUrl = `${env.FRONTEND_URL.replace(/\/$/, '')}/reset-password?token=${rawToken}`;
+  // Não bloqueia o fluxo em caso de falha de e-mail (provedor fora do ar
+  // não deve impedir o usuário de tentar de novo) — erro só é logado.
+  await sendPasswordResetEmail(user.email, user.name, resetUrl);
+
   // SÓ retorna token em development explícito — nunca em production/undefined
+  // (em dev, sem SMTP configurado, isso permite testar o fluxo sem e-mail real)
   const devToken = env.NODE_ENV === 'development' ? rawToken : null;
   return { devToken };
 }

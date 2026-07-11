@@ -4,7 +4,8 @@ const authenticate = require('../../middlewares/authenticate');
 const validate = require('../../middlewares/validate');
 const AppError = require('../../utils/AppError');
 const service = require('./categories.service');
-const { createCategorySchema } = require('./categories.validators');
+const { createCategorySchema, updateCategorySchema } = require('./categories.validators');
+const { parseMonthId } = require('../../utils/parseParams');
 
 const router = Router();
 router.use(authenticate);
@@ -21,12 +22,31 @@ router.get(
   })
 );
 
+// Status de orçamento (limite x gasto) das categorias de despesa no mês.
+router.get(
+  '/budgets',
+  asyncHandler(async (req, res) => {
+    const monthId = parseMonthId(req.query);
+    const budgets = await service.getBudgetStatus(req.userId, monthId);
+    res.json({ budgets });
+  })
+);
+
 router.post(
   '/',
   validate(createCategorySchema),
   asyncHandler(async (req, res) => {
     const category = await service.createCategory(req.userId, req.body);
     res.status(201).json({ category });
+  })
+);
+
+router.patch(
+  '/:id/limit',
+  validate(updateCategorySchema),
+  asyncHandler(async (req, res) => {
+    const category = await service.updateCategoryLimit(req.userId, BigInt(req.params.id), req.body.monthlyLimit);
+    res.json({ category });
   })
 );
 

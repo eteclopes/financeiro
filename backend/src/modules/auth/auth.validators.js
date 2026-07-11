@@ -1,13 +1,13 @@
 const { z } = require('zod');
 
-// Senha "forte" mínima: 8+ caracteres, ao menos uma letra e um número.
-// Evita o clássico "123456" sem exigir símbolos (que prejudica usabilidade
-// sem ganho real de segurança proporcional, segundo guidelines do NIST).
+// Senha flexível: apenas um comprimento mínimo é exigido (6 caracteres).
+// Seguindo as diretrizes do NIST (SP 800-63B), exigir combinações de
+// maiúsculas/números/símbolos tem pouco ganho real de segurança e piora
+// bastante a usabilidade — o fator que mais importa é o comprimento.
 const passwordSchema = z
   .string()
-  .min(8, 'A senha deve ter pelo menos 8 caracteres.')
-  .regex(/[A-Za-z]/, 'A senha deve conter ao menos uma letra.')
-  .regex(/[0-9]/, 'A senha deve conter ao menos um número.');
+  .min(6, 'A senha deve ter pelo menos 6 caracteres.')
+  .max(72, 'A senha deve ter no máximo 72 caracteres.');
 
 const registerSchema = z.object({
   name: z.string().trim().min(2, 'Nome muito curto.').max(120),

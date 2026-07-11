@@ -22,6 +22,19 @@ const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN_DAYS: z.coerce.number().default(30),
   PASSWORD_RESET_EXPIRES_IN_HOURS: z.coerce.number().default(1),
+
+  // ── E-mail transacional (recuperação de senha) ──────────────────────
+  // Todas opcionais: se SMTP_HOST não estiver definido, o mailer apenas
+  // loga um aviso e não envia e-mail de verdade (comportamento de dev),
+  // em vez de derrubar o servidor. Em produção, configure um provedor
+  // como Resend, SendGrid, Amazon SES ou qualquer SMTP compatível.
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().default('FinançasPro <no-reply@financaspro.app>'),
+  FRONTEND_URL: z.string().default('http://localhost:5173'),
 });
 
 const parsed = envSchema.safeParse(process.env);
