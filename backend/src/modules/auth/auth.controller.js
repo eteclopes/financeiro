@@ -64,4 +64,9 @@ const me = asyncHandler(async (req, res) => {
   res.json({ user });
 });
 
-module.exports = { register, login, refresh, logout, forgotPassword, resetPassword, me };
+const updateProfile = asyncHandler(async (req, res) => {
+  const user = await authService.updateProfile(req.userId, req.body);
+  res.json({ user });
+});
+
+module.exports = { register, login, refresh, logout, forgotPassword, resetPassword, me, updateProfile };

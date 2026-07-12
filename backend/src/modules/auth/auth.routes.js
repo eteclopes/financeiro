@@ -5,6 +5,7 @@ const { authLimiter } = require('../../middlewares/rateLimiters');
 const controller = require('./auth.controller');
 const {
   registerSchema,
+  updateProfileSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
@@ -19,5 +20,6 @@ router.post('/logout', controller.logout);
 router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), controller.forgotPassword);
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), controller.resetPassword);
 router.get('/me', authenticate, controller.me);
+router.patch('/me', authenticate, validate(updateProfileSchema), controller.updateProfile);
 
 module.exports = router;

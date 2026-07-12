@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const prismaMock = require('../../src/config/prisma');
 const { installDefaults } = require('../helpers/prismaMock');
 const AppError = require('../../src/utils/AppError');
-const { login, register, forgotPassword, resetPassword } = require('../../src/modules/auth/auth.service');
+const { login, register, forgotPassword, resetPassword, updateProfile } = require('../../src/modules/auth/auth.service');
 
 beforeEach(() => installDefaults(prismaMock));
 
@@ -124,6 +124,30 @@ describe('AuditLog — ações sensíveis de autenticação ficam registradas', 
 
     expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ userId: 9n, action: 'password_reset_completed' }) })
+    );
+  });
+});
+
+describe('updateProfile — edição do nome de exibição', () => {
+  test('atualiza o nome e devolve apenas os campos públicos do usuário (sem passwordHash)', async () => {
+    prismaMock.user.update.mockResolvedValue({
+      id: 7n, name: 'Novo Nome', email: 'ana@teste.com', passwordHash: 'hash-secreto', createdAt: new Date(),
+    });
+
+    const result = await updateProfile(7n, { name: 'Novo Nome' });
+
+    expect(prismaMock.user.update).toHaveBeenCalledWith({ where: { id: 7n }, data: { name: 'Novo Nome' } });
+    expect(result).toEqual({ id: 7n, name: 'Novo Nome', email: 'ana@teste.com', createdAt: result.createdAt });
+    expect(result.passwordHash).toBeUndefined();
+  });
+
+  test('grava audit log da alteração de nome', async () => {
+    prismaMock.user.update.mockResolvedValue({ id: 7n, name: 'Novo Nome', email: 'a@a.com', createdAt: new Date() });
+
+    await updateProfile(7n, { name: 'Novo Nome' });
+
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: 7n, entity: 'user', action: 'update' }) })
     );
   });
 });

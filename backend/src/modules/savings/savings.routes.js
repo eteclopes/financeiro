@@ -37,4 +37,24 @@ router.post(
   })
 );
 
+// Só aceitam o ID do lançamento mais recente — ver comentário em
+// savings.service.updateLastTransaction sobre por que isso é uma cadeia
+// sequencial e não dá pra editar/excluir lançamentos arbitrários do meio.
+router.patch(
+  '/:id',
+  validate(savingsMovementSchema),
+  asyncHandler(async (req, res) => {
+    const transaction = await service.updateLastTransaction(req.userId, BigInt(req.params.id), req.body);
+    res.json({ transaction });
+  })
+);
+
+router.delete(
+  '/:id',
+  asyncHandler(async (req, res) => {
+    const transaction = await service.deleteLastTransaction(req.userId, BigInt(req.params.id));
+    res.json({ transaction });
+  })
+);
+
 module.exports = router;

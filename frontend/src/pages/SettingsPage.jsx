@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { categoriesApi } from '../lib/services';
 import { Card, CardHeader, Badge, Button } from '../components/ui/index';
-import { FormGroup, Input, Select } from '../components/ui/Modal';
+import { Modal, FormGroup, Input, Select } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
 
 export default function SettingsPage() {
   const user  = useAuthStore((s) => s.user);
+  const updateProfile = useAuthStore((s) => s.updateProfile);
   const toast = useUIStore((s) => s);
   const [catType, setCatType]     = useState('expense');
   const [categories, setCategories] = useState([]);
@@ -15,6 +16,26 @@ export default function SettingsPage() {
   const [editingCatId, setEditingCatId]     = useState(null);
   const [editingCatName, setEditingCatName] = useState('');
   const [renamingCat, setRenamingCat]       = useState(false);
+  const [editNameModal, setEditNameModal] = useState(false);
+  const [nameForm, setNameForm]           = useState('');
+  const [savingName, setSavingName]       = useState(false);
+
+  function openEditName() {
+    setNameForm(user?.name ?? '');
+    setEditNameModal(true);
+  }
+
+  async function saveEditName() {
+    const name = nameForm.trim();
+    if (name.length < 2) { toast.error('Nome muito curto.'); return; }
+    setSavingName(true);
+    try {
+      await updateProfile(name);
+      toast.success('Nome atualizado!');
+      setEditNameModal(false);
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar nome.'); }
+    finally { setSavingName(false); }
+  }
 
   async function loadCats() {
     try { const r = await categoriesApi.list(catType); setCategories(r.data.categories ?? []); }
@@ -68,12 +89,32 @@ export default function SettingsPage() {
             {user?.name?.[0]?.toUpperCase() ?? 'U'}
           </div>
           <div>
-            <p className="font-bold text-slate-900 dark:text-zinc-50 text-lg">{user?.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-bold text-slate-900 dark:text-zinc-50 text-lg">{user?.name}</p>
+              <button onClick={openEditName} className="text-xs text-primary-dark dark:text-primary-light hover:underline">
+                Editar
+              </button>
+            </div>
             <p className="text-sm text-muted">{user?.email}</p>
             <Badge variant="success" className="mt-1.5">Conta ativa</Badge>
           </div>
         </div>
       </Card>
+
+      {/* Editar nome */}
+      <Modal open={editNameModal} onClose={() => setEditNameModal(false)} title="Editar Nome" size="sm">
+        <div className="space-y-4">
+          <FormGroup label="Nome" required>
+            <Input value={nameForm} onChange={(e) => setNameForm(e.target.value)} autoFocus
+              onKeyDown={(e) => { if (e.key === 'Enter') saveEditName(); }} />
+          </FormGroup>
+          <p className="text-xs text-muted">O e-mail não pode ser alterado por aqui.</p>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setEditNameModal(false)}>Cancelar</Button>
+            <Button onClick={saveEditName} loading={savingName}>Salvar</Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* Senha */}
       <Card>

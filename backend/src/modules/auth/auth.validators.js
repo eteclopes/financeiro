@@ -15,6 +15,12 @@ const registerSchema = z.object({
   password: passwordSchema,
 });
 
+// Só o nome é editável por aqui — trocar o e-mail exigiria reverificação
+// (confirmação por e-mail, impacto em login) e não existe esse fluxo ainda.
+const updateProfileSchema = z.object({
+  name: z.string().trim().min(2, 'Nome muito curto.').max(120),
+});
+
 const loginSchema = z.object({
   email: z.string().trim().toLowerCase().email('E-mail inválido.'),
   password: z.string().min(1, 'Senha é obrigatória.'),
@@ -31,6 +37,7 @@ const resetPasswordSchema = z.object({
 
 module.exports = {
   registerSchema,
+  updateProfileSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,

@@ -40,6 +40,27 @@ async function computeUsedLimitsByCard(cardIds, client = prisma) {
 }
 
 /**
+ * Quantas compras (parcelamentos) cada cartão já teve — usado só para a
+ * listagem saber se o cartão tem histórico (e portanto se "excluir" precisa
+ * apagar dados em cascata ou pode ser uma exclusão simples). Não filtra por
+ * status como computeUsedLimitsByCard (qualquer compra já feita conta,
+ * mesmo paga/quitada).
+ */
+async function computeHistoryCountsByCard(cardIds, client = prisma) {
+  if (cardIds.length === 0) return new Map();
+
+  const grouped = await client.cardPurchase.groupBy({
+    by: ['cardId'],
+    where: { cardId: { in: cardIds } },
+    _count: { _all: true },
+  });
+
+  const map = new Map();
+  for (const row of grouped) map.set(String(row.cardId), row._count._all);
+  return map;
+}
+
+/**
  * Antes: 1 query para listar os cartões + 1 query de agregação POR cartão
  * (N+1 clássico). Agora: sempre 2 queries no total, não importa quantos
  * cartões o usuário tenha — busca todas as parcelas em aberto de todos os
@@ -49,7 +70,10 @@ async function listCards(userId) {
   const cards = await prisma.card.findMany({ where: { userId }, orderBy: { createdAt: 'asc' } });
   if (cards.length === 0) return [];
 
-  const usedLimitByCard = await computeUsedLimitsByCard(cards.map((c) => c.id));
+  const [usedLimitByCard, historyCountByCard] = await Promise.all([
+    computeUsedLimitsByCard(cards.map((c) => c.id)),
+    computeHistoryCountsByCard(cards.map((c) => c.id)),
+  ]);
 
   return cards.map((card) => {
     const usedLimit = usedLimitByCard.get(String(card.id)) ?? 0;
@@ -57,6 +81,10 @@ async function listCards(userId) {
       ...card,
       usedLimit,
       availableLimit: Math.max(Number(card.limitValue) - usedLimit, 0),
+      // Se nunca teve nenhuma compra, excluir é 100% seguro e imediato.
+      // Se já teve, excluir precisa apagar em cascata (ou ser bloqueado
+      // se tocar em mês encerrado) — ver deleteCard.
+      hasHistory: (historyCountByCard.get(String(card.id)) ?? 0) > 0,
     };
   });
 }
@@ -92,12 +120,74 @@ async function deactivateCard(userId, cardId) {
   return updated;
 }
 
+/**
+ * Exclusão de verdade (não apenas desativar). Duas situações bem diferentes:
+ *
+ * 1. Cartão sem nenhuma compra/fatura: exclusão simples, sem risco nenhum.
+ *
+ * 2. Cartão com histórico: excluir de verdade significa apagar em cascata
+ *    as despesas geradas por esse cartão (Expense.cardPurchaseId /
+ *    cardInvoiceId), depois as compras e faturas, e só então o cartão —
+ *    nessa ordem, por causa das foreign keys. Isso REESCREVE meses que já
+ *    aconteceram (o total de gastos de um mês passado muda). Por isso, se
+ *    qualquer uma dessas despesas pertence a um mês já encerrado (histórico
+ *    imutável, mesma regra de months.service.assertMonthIsOpen), a exclusão
+ *    é bloqueada — a única forma seria desativar o cartão em vez de excluir.
+ *    Se todo o histórico está em meses ainda abertos, procede com o
+ *    apagamento em cascata dentro de uma transação (tudo ou nada).
+ */
+async function deleteCard(userId, cardId) {
+  const card = await getOwnedCardOrThrow(userId, cardId);
+
+  const [purchases, invoices] = await Promise.all([
+    prisma.cardPurchase.findMany({ where: { cardId }, select: { id: true } }),
+    prisma.cardInvoice.findMany({ where: { cardId }, select: { id: true } }),
+  ]);
+  const purchaseIds = purchases.map((p) => p.id);
+  const invoiceIds = invoices.map((i) => i.id);
+
+  if (purchaseIds.length === 0 && invoiceIds.length === 0) {
+    await prisma.card.delete({ where: { id: cardId } });
+    await recordAuditLog(userId, 'card', cardId, 'delete', { oldValue: card });
+    return { card, deletedCounts: { purchases: 0, invoices: 0, expenses: 0 } };
+  }
+
+  const linkedExpenses = await prisma.expense.findMany({
+    where: { OR: [{ cardPurchaseId: { in: purchaseIds } }, { cardInvoiceId: { in: invoiceIds } }] },
+    select: { id: true, month: { select: { status: true } } },
+  });
+
+  const touchesClosedMonth = linkedExpenses.some((e) => e.month.status === 'closed');
+  if (touchesClosedMonth) {
+    throw new AppError(
+      'Este cartão tem despesas em meses já encerrados (histórico imutável) e não pode ser excluído por completo. Use "Desativar" para parar de usá-lo sem apagar o histórico.',
+      409,
+      'CARD_HAS_CLOSED_HISTORY'
+    );
+  }
+
+  const expenseIds = linkedExpenses.map((e) => e.id);
+
+  await prisma.$transaction([
+    prisma.expense.deleteMany({ where: { id: { in: expenseIds } } }),
+    prisma.cardPurchase.deleteMany({ where: { cardId } }),
+    prisma.cardInvoice.deleteMany({ where: { cardId } }),
+    prisma.card.delete({ where: { id: cardId } }),
+  ]);
+
+  const deletedCounts = { purchases: purchaseIds.length, invoices: invoiceIds.length, expenses: expenseIds.length };
+  await recordAuditLog(userId, 'card', cardId, 'delete', { oldValue: { ...card, ...deletedCounts } });
+  return { card, deletedCounts };
+}
+
 module.exports = {
   listCards,
   createCard,
   getOwnedCardOrThrow,
   updateCard,
   deactivateCard,
+  deleteCard,
   computeUsedLimit,
   computeUsedLimitsByCard,
+  computeHistoryCountsByCard,
 };

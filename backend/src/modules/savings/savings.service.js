@@ -81,6 +81,90 @@ async function withdraw(userId, { value, date, observation }) {
 }
 
 /**
+ * Edita o lançamento mais recente do extrato de poupança. É seguro porque
+ * balanceAfter é uma cadeia sequencial (cada lançamento depende apenas do
+ * anterior) — mexer em QUALQUER lançamento que não seja o último exigiria
+ * recalcular o balanceAfter de todos os posteriores em cascata. Editar
+ * apenas o último não tem esse problema: não existe nada depois dele.
+ * Não permite trocar `type` (deposit<->withdraw) — isso mudaria o sentido
+ * do lançamento; para isso o usuário deve excluir e lançar de novo.
+ */
+async function updateLastTransaction(userId, transactionId, { value, date, observation }) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${userId})`;
+
+    const last = await tx.savingsTransaction.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!last || String(last.id) !== String(transactionId)) {
+      throw new AppError(
+        'Só é possível editar o lançamento mais recente do extrato de poupança. Para corrigir um lançamento mais antigo, é preciso desfazer os posteriores primeiro.',
+        409,
+        'NOT_LAST_SAVINGS_TRANSACTION'
+      );
+    }
+
+    // Saldo antes deste lançamento = desfaz o próprio efeito dele sobre o balanceAfter salvo.
+    const balanceBeforeThis = last.type === 'deposit'
+      ? round2(Number(last.balanceAfter) - Number(last.value))
+      : round2(Number(last.balanceAfter) + Number(last.value));
+
+    if (last.type === 'withdraw' && value > balanceBeforeThis + 0.009) {
+      throw new AppError(
+        `Saldo guardado insuficiente para esse valor. Disponível antes deste lançamento: R$ ${balanceBeforeThis.toFixed(2)}.`,
+        409,
+        'INSUFFICIENT_SAVINGS_BALANCE'
+      );
+    }
+
+    const balanceAfter = last.type === 'deposit'
+      ? round2(balanceBeforeThis + value)
+      : round2(balanceBeforeThis - value);
+
+    const updated = await tx.savingsTransaction.update({
+      where: { id: last.id },
+      data: { value, transactionDate: date, observation, balanceAfter },
+    });
+    return { updated, oldValue: last };
+  }).then(async ({ updated, oldValue }) => {
+    await recordAuditLog(userId, 'savingsTransaction', updated.id, 'update', { oldValue, newValue: updated });
+    return updated;
+  });
+}
+
+/**
+ * Exclui o lançamento mais recente do extrato — mesma justificativa de
+ * segurança de updateLastTransaction. Como não há nada depois dele na
+ * cadeia, remover não deixa nenhum balanceAfter desatualizado para trás.
+ */
+async function deleteLastTransaction(userId, transactionId) {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${userId})`;
+
+    const last = await tx.savingsTransaction.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!last || String(last.id) !== String(transactionId)) {
+      throw new AppError(
+        'Só é possível excluir o lançamento mais recente do extrato de poupança. Para remover um lançamento mais antigo, é preciso desfazer os posteriores primeiro.',
+        409,
+        'NOT_LAST_SAVINGS_TRANSACTION'
+      );
+    }
+
+    await tx.savingsTransaction.delete({ where: { id: last.id } });
+    return last;
+  }).then(async (deleted) => {
+    await recordAuditLog(userId, 'savingsTransaction', deleted.id, 'delete', { oldValue: deleted });
+    return deleted;
+  });
+}
+
+/**
  * Soma líquida de movimentações de saldo guardado dentro de um intervalo de
  * datas (tipicamente o mês selecionado no dashboard). Depósito é saída de
  * caixa do mês (positivo aqui = deve ser subtraído do saldo atual);
@@ -101,4 +185,4 @@ async function getNetMovementInRange(userId, startDate, endDate) {
   return round2(Number(deposits._sum.value ?? 0) - Number(withdraws._sum.value ?? 0));
 }
 
-module.exports = { getCurrentBalance, listTransactions, deposit, withdraw, getNetMovementInRange };
+module.exports = { getCurrentBalance, listTransactions, deposit, withdraw, updateLastTransaction, deleteLastTransaction, getNetMovementInRange };

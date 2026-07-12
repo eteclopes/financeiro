@@ -23,6 +23,8 @@ export default function CardsPage() {
   const [editCardModal, setEditCardModal] = useState(null); // cartão sendo editado, ou null
   const [deactivateTarget, setDeactivateTarget] = useState(null);
   const [deactivating, setDeactivating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingCard, setDeletingCard] = useState(false);
   const [purchaseModal, setPurchaseModal] = useState(false);
   const [payTarget, setPayTarget]   = useState(null);
   const [saving, setSaving]         = useState(false);
@@ -110,6 +112,25 @@ export default function CardsPage() {
       setDeactivateTarget(null); loadCards();
     } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao desativar cartão.'); }
     finally { setDeactivating(false); }
+  }
+
+  async function handleDeleteCard() {
+    setDeletingCard(true);
+    try {
+      const res = await cardsApi.delete(deleteTarget.id);
+      const counts = res.data?.deletedCounts;
+      toast.success(
+        counts && (counts.purchases > 0 || counts.invoices > 0)
+          ? `Cartão excluído junto com ${counts.purchases} compra(s) e ${counts.expenses} despesa(s) associadas.`
+          : 'Cartão excluído.'
+      );
+      setDeleteTarget(null); loadCards();
+    } catch (e) {
+      // Mensagem do backend já é acionável (ex: sugere desativar quando há
+      // histórico em mês encerrado) — não precisa de tratamento especial.
+      toast.error(e?.response?.data?.error?.message ?? 'Erro ao excluir cartão.');
+    }
+    finally { setDeletingCard(false); }
   }
 
   async function savePurchase() {
@@ -212,6 +233,9 @@ export default function CardsPage() {
                   {selected.active !== false && (
                     <Button variant="ghost" size="sm" onClick={() => setDeactivateTarget(selected)}>Desativar</Button>
                   )}
+                  <Button variant="ghost" size="sm" className="text-danger" onClick={() => setDeleteTarget(selected)}>
+                    {selected.hasHistory ? 'Excluir permanentemente' : 'Excluir'}
+                  </Button>
                   {selected.active === false ? (
                     <span className="text-xs text-muted italic">Não aceita novas compras</span>
                   ) : (
@@ -316,7 +340,22 @@ export default function CardsPage() {
         loading={deactivating}
         title="Desativar cartão"
         confirmLabel="Desativar"
-        description={`"${deactivateTarget?.name}" deixará de aceitar novas compras e sairá da sua lista de cartões ativos. As faturas e compras já registradas continuam salvas no histórico — essa ação não pode ser desfeita pelo app.`}
+        description={`"${deactivateTarget?.name}" deixará de aceitar novas compras (continua aparecendo na lista, marcado como desativado). Faturas e compras já registradas continuam salvas no histórico.`}
+      />
+
+      {/* Confirmação de exclusão real */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteCard}
+        loading={deletingCard}
+        title={deleteTarget?.hasHistory ? 'Excluir cartão permanentemente' : 'Excluir cartão'}
+        confirmLabel="Excluir"
+        description={
+          deleteTarget?.hasHistory
+            ? `"${deleteTarget?.name}" tem compras e faturas registradas. Excluir vai apagar o cartão E todo esse histórico (incluindo despesas já lançadas) para sempre — isso pode mudar totais de meses passados. Se algum lançamento estiver em um mês já encerrado, a exclusão será bloqueada e você pode usar "Desativar" em vez disso.`
+            : `"${deleteTarget?.name}" será excluído permanentemente. Este cartão ainda não tem nenhuma compra ou fatura registrada, então nada além dele será apagado.`
+        }
       />
 
 

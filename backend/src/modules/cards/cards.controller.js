@@ -23,6 +23,11 @@ const deactivateCard = asyncHandler(async (req, res) => {
   res.json({ card });
 });
 
+const deleteCard = asyncHandler(async (req, res) => {
+  const result = await cardsService.deleteCard(req.userId, BigInt(req.params.id));
+  res.json(result);
+});
+
 const createPurchase = asyncHandler(async (req, res) => {
   const result = await purchasesService.createCardPurchase(req.userId, {
     ...req.body,
@@ -50,6 +55,7 @@ module.exports = {
   createCard,
   updateCard,
   deactivateCard,
+  deleteCard,
   createPurchase,
   listInvoices,
   payInvoice,

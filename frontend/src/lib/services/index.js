@@ -7,6 +7,7 @@ export const authApi = {
   register: (data) => api.post('/auth/register', data),
   logout: () => api.post('/auth/logout'),
   refresh: () => api.post('/auth/refresh'),
+  updateProfile: (data) => api.patch('/auth/me', data),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (data) => api.post('/auth/reset-password', data),
 };
@@ -66,6 +67,7 @@ export const cardsApi = {
   create: (data) => api.post('/cards', data),
   update: (id, data) => api.patch(`/cards/${id}`, data),
   deactivate: (id) => api.patch(`/cards/${id}/deactivate`),
+  delete: (id) => api.delete(`/cards/${id}`),
   createPurchase: (cardId, data) => api.post(`/cards/${cardId}/purchases`, data),
   listInvoices: (cardId) => api.get(`/cards/${cardId}/invoices`),
   payInvoice: (invoiceId, data) => api.post(`/cards/invoices/${invoiceId}/pay`, data),
@@ -76,6 +78,8 @@ export const savingsApi = {
   get: () => api.get('/savings'),
   deposit: (data) => api.post('/savings/deposit', data),
   withdraw: (data) => api.post('/savings/withdraw', data),
+  update: (id, data) => api.patch(`/savings/${id}`, data),
+  delete: (id) => api.delete(`/savings/${id}`),
 };
 
 // ---- Goals ----

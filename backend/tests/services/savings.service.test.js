@@ -100,3 +100,79 @@ describe('savings.service — deposit/withdraw (fix de condição de corrida)', 
     expect(prismaMock.$transaction).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('savings.service — updateLastTransaction / deleteLastTransaction', () => {
+  test('deleteLastTransaction remove quando o id é o do lançamento mais recente', async () => {
+    prismaMock.savingsTransaction.findFirst.mockResolvedValue({ id: 9n, userId: 10n, type: 'deposit', value: 50, balanceAfter: 150 });
+    prismaMock.savingsTransaction.delete.mockResolvedValue({ id: 9n });
+
+    const result = await savingsService.deleteLastTransaction(10n, 9n);
+
+    expect(prismaMock.savingsTransaction.delete).toHaveBeenCalledWith({ where: { id: 9n } });
+    expect(result.id).toBe(9n);
+    expect(prismaMock.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ entity: 'savingsTransaction', action: 'delete' }) })
+    );
+  });
+
+  test('deleteLastTransaction rejeita (409) se o id não for o do lançamento mais recente', async () => {
+    prismaMock.savingsTransaction.findFirst.mockResolvedValue({ id: 9n, userId: 10n, type: 'deposit', value: 50, balanceAfter: 150 });
+
+    await expect(savingsService.deleteLastTransaction(10n, 3n)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'NOT_LAST_SAVINGS_TRANSACTION',
+    });
+    expect(prismaMock.savingsTransaction.delete).not.toHaveBeenCalled();
+  });
+
+  test('deleteLastTransaction rejeita (409) se não houver nenhum lançamento', async () => {
+    prismaMock.savingsTransaction.findFirst.mockResolvedValue(null);
+
+    await expect(savingsService.deleteLastTransaction(10n, 9n)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'NOT_LAST_SAVINGS_TRANSACTION',
+    });
+  });
+
+  test('updateLastTransaction recalcula balanceAfter de um depósito editado', async () => {
+    // último lançamento: depósito de 50 que levou o saldo a 150 (ou seja, saldo antes era 100)
+    prismaMock.savingsTransaction.findFirst.mockResolvedValue({ id: 9n, userId: 10n, type: 'deposit', value: 50, balanceAfter: 150 });
+    prismaMock.savingsTransaction.update.mockImplementation(({ data }) => Promise.resolve({ id: 9n, ...data }));
+
+    const result = await savingsService.updateLastTransaction(10n, 9n, { value: 80, date: new Date(), observation: 'corrigido' });
+
+    // saldo antes (100) + novo valor (80) = 180
+    expect(result.balanceAfter).toBe(180);
+    expect(result.value).toBe(80);
+  });
+
+  test('updateLastTransaction recalcula balanceAfter de um saque editado', async () => {
+    // último lançamento: saque de 30 que deixou o saldo em 70 (saldo antes era 100)
+    prismaMock.savingsTransaction.findFirst.mockResolvedValue({ id: 9n, userId: 10n, type: 'withdraw', value: 30, balanceAfter: 70 });
+    prismaMock.savingsTransaction.update.mockImplementation(({ data }) => Promise.resolve({ id: 9n, ...data }));
+
+    const result = await savingsService.updateLastTransaction(10n, 9n, { value: 40, date: new Date(), observation: null });
+
+    // saldo antes (100) - novo valor (40) = 60
+    expect(result.balanceAfter).toBe(60);
+  });
+
+  test('updateLastTransaction rejeita (409) editar saque para valor maior que o saldo disponível antes dele', async () => {
+    prismaMock.savingsTransaction.findFirst.mockResolvedValue({ id: 9n, userId: 10n, type: 'withdraw', value: 30, balanceAfter: 70 });
+
+    // saldo antes era 100 — pedir 150 deve ser rejeitado
+    await expect(
+      savingsService.updateLastTransaction(10n, 9n, { value: 150, date: new Date(), observation: null })
+    ).rejects.toMatchObject({ statusCode: 409, code: 'INSUFFICIENT_SAVINGS_BALANCE' });
+    expect(prismaMock.savingsTransaction.update).not.toHaveBeenCalled();
+  });
+
+  test('updateLastTransaction rejeita (409) se o id não for o do lançamento mais recente', async () => {
+    prismaMock.savingsTransaction.findFirst.mockResolvedValue({ id: 9n, userId: 10n, type: 'deposit', value: 50, balanceAfter: 150 });
+
+    await expect(
+      savingsService.updateLastTransaction(10n, 2n, { value: 10, date: new Date(), observation: null })
+    ).rejects.toMatchObject({ statusCode: 409, code: 'NOT_LAST_SAVINGS_TRANSACTION' });
+    expect(prismaMock.savingsTransaction.update).not.toHaveBeenCalled();
+  });
+});

@@ -55,6 +55,12 @@ export const useAuthStore = create((set) => ({
     }
   },
 
+  async updateProfile(name) {
+    const { data } = await api.patch('/auth/me', { name });
+    set((state) => ({ user: { ...state.user, ...data.user } }));
+    return data.user;
+  },
+
   async logout() {
     try { await api.post('/auth/logout'); } catch {}
     setAccessToken(null);

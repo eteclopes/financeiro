@@ -131,4 +131,12 @@ async function me(userId) {
   return publicUser(user);
 }
 
-module.exports = { register, login, refresh, logout, forgotPassword, resetPassword, me };
+// Atualiza apenas o nome de exibição. E-mail e senha têm fluxos próprios
+// (senha via forgot/reset-password) e não são tocados aqui de propósito.
+async function updateProfile(userId, { name }) {
+  const user = await prisma.user.update({ where: { id: userId }, data: { name } });
+  await recordAuditLog(userId, 'user', userId, 'update', { newValue: { name } });
+  return publicUser(user);
+}
+
+module.exports = { register, login, refresh, logout, forgotPassword, resetPassword, me, updateProfile };

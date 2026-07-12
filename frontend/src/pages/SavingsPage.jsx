@@ -3,7 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianG
 import { savingsApi } from '../lib/services';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState } from '../components/ui/index';
-import { Modal, FormGroup, Input } from '../components/ui/Modal';
+import { Modal, ConfirmDialog, FormGroup, Input } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
 import { useThemeStore } from '../store/themeStore';
 
@@ -13,6 +13,10 @@ export default function SavingsPage() {
   const [modal, setModal]     = useState(null);
   const [form, setForm]       = useState({ value:'', date: new Date().toISOString().slice(0,10), observation:'' });
   const [saving, setSaving]   = useState(false);
+  const [editTxModal, setEditTxModal] = useState(null);
+  const [editTxForm, setEditTxForm]   = useState({ value:'', date:'', observation:'' });
+  const [deleteTxTarget, setDeleteTxTarget] = useState(null);
+  const [deletingTx, setDeletingTx]   = useState(false);
   const toast = useUIStore((s) => s);
   const theme = useThemeStore((s) => s.theme);
   const gridStroke = theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#F1F5F9';
@@ -42,6 +46,38 @@ export default function SavingsPage() {
       setModal(null); load();
     } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
     finally { setSaving(false); }
+  }
+
+  function openEditTx(t) {
+    setEditTxForm({
+      value: String(t.value),
+      date: new Date(t.transactionDate).toISOString().slice(0,10),
+      observation: t.observation ?? '',
+    });
+    setEditTxModal(t);
+  }
+
+  async function saveEditTx() {
+    if (!editTxForm.value || parseFloat(editTxForm.value) <= 0) { toast.error('Informe um valor válido.'); return; }
+    setSaving(true);
+    try {
+      await savingsApi.update(editTxModal.id, {
+        value: parseFloat(editTxForm.value),
+        date: editTxForm.date,
+        observation: editTxForm.observation || undefined,
+      });
+      toast.success('Lançamento atualizado!'); setEditTxModal(null); load();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar.'); }
+    finally { setSaving(false); }
+  }
+
+  async function handleDeleteTx() {
+    setDeletingTx(true);
+    try {
+      await savingsApi.delete(deleteTxTarget.id);
+      toast.success('Lançamento excluído.'); setDeleteTxTarget(null); load();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao excluir.'); }
+    finally { setDeletingTx(false); }
   }
 
   const chartData = [...(data.transactions ?? [])].reverse().map((t) => ({
@@ -112,6 +148,7 @@ export default function SavingsPage() {
       <Card padding={false}>
         <div className="px-5 py-4 border-b border-border dark:border-white/[0.06]">
           <h3 className="font-semibold text-slate-900 dark:text-zinc-50">Histórico de Movimentações</h3>
+          <p className="text-xs text-muted mt-0.5">Só o lançamento mais recente pode ser editado ou excluído — isso preserva o saldo acumulado dos anteriores.</p>
         </div>
         {loading ? <div className="p-5 space-y-3">{Array.from({length:4}).map((_,i)=><div key={i} className="h-10 shimmer-bg rounded-xl" />)}</div>
           : data.transactions.length === 0
@@ -120,12 +157,12 @@ export default function SavingsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-subtle/60 dark:bg-white/[0.03]"><tr>
-                    {['Tipo','Valor','Saldo após','Data','Observação'].map(h=>(
+                    {['Tipo','Valor','Saldo após','Data','Observação',''].map(h=>(
                       <th key={h} className="table-header">{h}</th>
                     ))}
                   </tr></thead>
                   <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
-                    {data.transactions.map((t) => (
+                    {data.transactions.map((t, idx) => (
                       <tr key={t.id} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
                         <td className="table-cell">
                           <Badge variant={t.type==='deposit'?'success':'danger'}>{t.type==='deposit'?'Depósito':'Retirada'}</Badge>
@@ -136,6 +173,14 @@ export default function SavingsPage() {
                         <td className="table-cell font-mono tabular-nums text-slate-600 dark:text-zinc-400">{formatCurrency(t.balanceAfter)}</td>
                         <td className="table-cell text-muted">{formatShortDate(t.transactionDate)}</td>
                         <td className="table-cell text-muted">{t.observation ?? '—'}</td>
+                        <td className="table-cell">
+                          {idx === 0 && (
+                            <div className="flex items-center gap-2 justify-end">
+                              <Button size="sm" variant="ghost" onClick={() => openEditTx(t)}>Editar</Button>
+                              <Button size="sm" variant="ghost" className="text-danger" onClick={() => setDeleteTxTarget(t)}>Excluir</Button>
+                            </div>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -165,6 +210,31 @@ export default function SavingsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Editar último lançamento */}
+      <Modal open={!!editTxModal} onClose={() => setEditTxModal(null)} title={`Editar ${editTxModal?.type==='deposit'?'Depósito':'Retirada'}`} size="sm">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <FormGroup label="Valor" required><Input type="number" min="0" step="0.01" value={editTxForm.value} onChange={(e) => setEditTxForm({...editTxForm,value:e.target.value})} autoFocus /></FormGroup>
+            <FormGroup label="Data"><Input type="date" value={editTxForm.date} onChange={(e) => setEditTxForm({...editTxForm,date:e.target.value})} /></FormGroup>
+          </div>
+          <FormGroup label="Observação"><Input value={editTxForm.observation} onChange={(e) => setEditTxForm({...editTxForm,observation:e.target.value})} placeholder="Opcional" /></FormGroup>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setEditTxModal(null)}>Cancelar</Button>
+            <Button onClick={saveEditTx} loading={saving}>Salvar Alteração</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTxTarget}
+        onClose={() => setDeleteTxTarget(null)}
+        onConfirm={handleDeleteTx}
+        loading={deletingTx}
+        title="Excluir lançamento"
+        confirmLabel="Excluir"
+        description={`Excluir este ${deleteTxTarget?.type==='deposit'?'depósito':'saque'} de ${formatCurrency(deleteTxTarget?.value ?? 0)}? O saldo guardado volta a ser o que era antes dele.`}
+      />
     </div>
   );
 }
