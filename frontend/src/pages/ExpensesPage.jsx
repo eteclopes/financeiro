@@ -30,6 +30,10 @@ export default function ExpensesPage() {
   const [varModal, setVarModal] = useState(false);
   const [varForm, setVarForm]   = useState({ description:'', value:'', categoryId:'', date: today(), paymentMethod:'pix', paid:true });
 
+  // ── Modal editar despesa variável ──
+  const [editVarModal, setEditVarModal] = useState(null);
+  const [editVarForm, setEditVarForm]   = useState({ description:'', value:'', categoryId:'', dueDate:'', observation:'' });
+
   // ── Modal nova despesa fixa ──
   const [fixModal, setFixModal] = useState(false);
   const [fixForm, setFixForm]   = useState({ description:'', value:'', categoryId:'', dueDay:'10' });
@@ -102,6 +106,22 @@ export default function ExpensesPage() {
       await expensesApi.createVariable({ ...varForm, value: parseFloat(varForm.value), categoryId: String(cat), monthId: selectedMonthId });
       toast.success('Despesa variável criada.'); setVarModal(false); load();
     } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    finally { setSaving(false); }
+  }
+
+  async function saveEditVariable() {
+    if (!editVarForm.description || !editVarForm.value) { toast.error('Preencha descrição e valor.'); return; }
+    setSaving(true);
+    try {
+      await expensesApi.update(editVarModal.id, {
+        description: editVarForm.description,
+        value: parseFloat(editVarForm.value),
+        categoryId: String(editVarForm.categoryId),
+        dueDate: editVarForm.dueDate,
+        observation: editVarForm.observation || undefined,
+      });
+      toast.success('Despesa atualizada.'); setEditVarModal(null); load();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar despesa.'); }
     finally { setSaving(false); }
   }
 
@@ -339,9 +359,21 @@ export default function ExpensesPage() {
                       <Badge variant={STATUS_V[e.status] ?? 'default'}>{STATUS_L[e.status] ?? e.status}</Badge>
                     </td>
                     <td className="table-cell">
-                      <Button size="sm" variant="ghost" className="text-danger" onClick={() => setDeleteTarget({ ...e, _type:'variable' })}>
-                        Excluir
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => {
+                          setEditVarModal(e);
+                          setEditVarForm({
+                            description: e.description,
+                            value: String(e.value),
+                            categoryId: e.categoryId != null ? String(e.categoryId) : '',
+                            dueDate: e.dueDate ? new Date(e.dueDate).toISOString().slice(0,10) : '',
+                            observation: e.observation ?? '',
+                          });
+                        }}>Editar</Button>
+                        <Button size="sm" variant="ghost" className="text-danger" onClick={() => setDeleteTarget({ ...e, _type:'variable' })}>
+                          Excluir
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -473,6 +505,42 @@ export default function ExpensesPage() {
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="outline" onClick={() => setEditFixModal(null)}>Cancelar</Button>
             <Button onClick={saveEditFixed} loading={saving}>Salvar Alteração</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ── Modal Editar Despesa Variável ── */}
+      <Modal open={!!editVarModal} onClose={() => setEditVarModal(null)} title="Editar Despesa Variável" size="sm">
+        <div className="space-y-4">
+          <FormGroup label="Descrição" required>
+            <Input value={editVarForm.description} onChange={(e) => setEditVarForm({...editVarForm,description:e.target.value})} autoFocus />
+          </FormGroup>
+          <div className="grid grid-cols-2 gap-3">
+            <FormGroup label="Valor" required>
+              <Input type="number" min="0" step="0.01" value={editVarForm.value} onChange={(e) => setEditVarForm({...editVarForm,value:e.target.value})} />
+            </FormGroup>
+            <FormGroup label="Data" required>
+              <Input type="date" value={editVarForm.dueDate} onChange={(e) => setEditVarForm({...editVarForm,dueDate:e.target.value})} />
+            </FormGroup>
+          </div>
+          <FormGroup label="Categoria">
+            <CategorySelect
+              value={editVarForm.categoryId}
+              onChange={(e) => setEditVarForm({...editVarForm,categoryId:e.target.value})}
+              categories={categories}
+              type="expense"
+              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
+            />
+          </FormGroup>
+          <FormGroup label="Observação" hint="opcional">
+            <Input value={editVarForm.observation} onChange={(e) => setEditVarForm({...editVarForm,observation:e.target.value})} />
+          </FormGroup>
+          <p className="text-xs text-muted">
+            Forma de pagamento e status (pago/pendente) não são alterados aqui — use "Pagar" na listagem para isso.
+          </p>
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="outline" onClick={() => setEditVarModal(null)}>Cancelar</Button>
+            <Button onClick={saveEditVariable} loading={saving}>Salvar Alteração</Button>
           </div>
         </div>
       </Modal>

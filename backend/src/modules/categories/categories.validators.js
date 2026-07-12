@@ -10,4 +10,8 @@ const updateCategorySchema = z.object({
   monthlyLimit: z.number().positive('O limite deve ser maior que zero.').nullable(),
 });
 
-module.exports = { createCategorySchema, updateCategorySchema };
+const renameCategorySchema = z.object({
+  name: z.string().trim().min(1, 'Nome é obrigatório.').max(80),
+});
+
+module.exports = { createCategorySchema, updateCategorySchema, renameCategorySchema };

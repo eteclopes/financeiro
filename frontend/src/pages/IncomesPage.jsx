@@ -26,6 +26,8 @@ export default function IncomesPage() {
   const [saving, setSaving]         = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting]     = useState(false);
+  const [stopRecurringTarget, setStopRecurringTarget] = useState(null);
+  const [stoppingRecurring, setStoppingRecurring] = useState(false);
   const toast = useUIStore((s) => s);
 
   const load = useCallback(async () => {
@@ -89,6 +91,16 @@ export default function IncomesPage() {
     finally { setDeleting(false); }
   }
 
+  async function handleStopRecurring() {
+    setStoppingRecurring(true);
+    try {
+      await incomesApi.deactivateTemplate(stopRecurringTarget.templateId);
+      toast.success('Recorrência interrompida. Este mês não é afetado, só os próximos.');
+      setStopRecurringTarget(null); load();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao parar recorrência.'); }
+    finally { setStoppingRecurring(false); }
+  }
+
   const total = incomes.reduce((s, i) => s + Number(i.value), 0);
 
   return (
@@ -125,7 +137,16 @@ export default function IncomesPage() {
                     <td className="table-cell text-muted">{formatShortDate(inc.incomeDate)}</td>
                     <td className="table-cell"><Badge>{PM_LABELS[inc.paymentMethod] ?? inc.paymentMethod}</Badge></td>
                     <td className="table-cell"><Badge variant={inc.origin==='physical'?'warning':'info'}>{inc.origin==='physical'?'Físico':'Digital'}</Badge></td>
-                    <td className="table-cell">{inc.templateId ? <Badge variant="success">Sim</Badge> : <span className="text-muted text-xs">Não</span>}</td>
+                    <td className="table-cell">
+                      {inc.templateId ? (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="success">Sim</Badge>
+                          <button onClick={() => setStopRecurringTarget(inc)} className="text-xs text-muted hover:text-danger underline decoration-dotted">
+                            parar
+                          </button>
+                        </div>
+                      ) : <span className="text-muted text-xs">Não</span>}
+                    </td>
                     <td className="table-cell">
                       <div className="flex gap-1">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(inc)}>Editar</Button>
@@ -198,6 +219,11 @@ export default function IncomesPage() {
         loading={deleting} title="Excluir receita"
         description={`Excluir "${deleteTarget?.description}"? Esta ação não pode ser desfeita.`}
         confirmLabel="Excluir" />
+
+      <ConfirmDialog open={!!stopRecurringTarget} onClose={() => setStopRecurringTarget(null)} onConfirm={handleStopRecurring}
+        loading={stoppingRecurring} title="Parar recorrência" variant="primary"
+        description={`"${stopRecurringTarget?.description}" não será mais gerada automaticamente nos próximos meses. As receitas já lançadas em meses anteriores (incluindo este) continuam como estão.`}
+        confirmLabel="Parar recorrência" />
     </div>
   );
 }

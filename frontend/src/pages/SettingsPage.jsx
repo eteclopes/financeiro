@@ -12,6 +12,9 @@ export default function SettingsPage() {
   const [categories, setCategories] = useState([]);
   const [catName, setCatName]     = useState('');
   const [savingCat, setSavingCat] = useState(false);
+  const [editingCatId, setEditingCatId]     = useState(null);
+  const [editingCatName, setEditingCatName] = useState('');
+  const [renamingCat, setRenamingCat]       = useState(false);
 
   async function loadCats() {
     try { const r = await categoriesApi.list(catType); setCategories(r.data.categories ?? []); }
@@ -33,6 +36,21 @@ export default function SettingsPage() {
   async function deleteCategory(id) {
     try { await categoriesApi.delete(id); toast.success('Categoria removida.'); loadCats(); }
     catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Categoria em uso ou não encontrada.'); }
+  }
+
+  function startRename(cat) { setEditingCatId(cat.id); setEditingCatName(cat.name); }
+  function cancelRename() { setEditingCatId(null); setEditingCatName(''); }
+
+  async function saveRename(id) {
+    const name = editingCatName.trim();
+    if (!name) { toast.error('Informe um nome.'); return; }
+    setRenamingCat(true);
+    try {
+      await categoriesApi.rename(id, name);
+      toast.success('Categoria renomeada!');
+      cancelRename(); loadCats();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao renomear.'); }
+    finally { setRenamingCat(false); }
   }
 
   const userCats    = categories.filter((c) => c.userId != null);
@@ -96,13 +114,37 @@ export default function SettingsPage() {
             <p className="text-xs font-bold text-slate-500 dark:text-zinc-500 uppercase tracking-wider mb-2">Suas categorias</p>
             <div className="flex flex-wrap gap-2">
               {userCats.map((cat) => (
-                <div key={cat.id} className="flex items-center gap-1 bg-subtle dark:bg-white/[0.04] border border-border dark:border-white/10 rounded-xl pl-3 pr-1.5 py-1.5">
-                  <span className="text-sm text-slate-700 dark:text-zinc-300 font-medium">{cat.name}</span>
-                  <button onClick={() => deleteCategory(cat.id)}
-                    className="h-5 w-5 rounded-lg hover:bg-danger-muted dark:hover:bg-danger/15 text-muted hover:text-danger flex items-center justify-center text-sm transition-colors ml-1">
-                    ×
-                  </button>
-                </div>
+                editingCatId === cat.id ? (
+                  <div key={cat.id} className="flex items-center gap-1 bg-white dark:bg-panel-dark border border-primary/40 rounded-xl pl-2 pr-1.5 py-1.5">
+                    <input
+                      autoFocus
+                      value={editingCatName}
+                      onChange={(e) => setEditingCatName(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') saveRename(cat.id); if (e.key === 'Escape') cancelRename(); }}
+                      className="text-sm font-medium bg-transparent outline-none w-32 text-slate-700 dark:text-zinc-300"
+                    />
+                    <button onClick={() => saveRename(cat.id)} disabled={renamingCat}
+                      className="h-5 w-5 rounded-lg hover:bg-primary-subtle dark:hover:bg-primary/15 text-muted hover:text-primary-dark flex items-center justify-center text-xs transition-colors">
+                      ✓
+                    </button>
+                    <button onClick={cancelRename} disabled={renamingCat}
+                      className="h-5 w-5 rounded-lg hover:bg-danger-muted dark:hover:bg-danger/15 text-muted hover:text-danger flex items-center justify-center text-sm transition-colors">
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <div key={cat.id} className="flex items-center gap-1 bg-subtle dark:bg-white/[0.04] border border-border dark:border-white/10 rounded-xl pl-3 pr-1.5 py-1.5">
+                    <span className="text-sm text-slate-700 dark:text-zinc-300 font-medium">{cat.name}</span>
+                    <button onClick={() => startRename(cat)} title="Renomear"
+                      className="h-5 w-5 rounded-lg hover:bg-primary-subtle dark:hover:bg-primary/15 text-muted hover:text-primary-dark flex items-center justify-center text-xs transition-colors ml-1">
+                      ✎
+                    </button>
+                    <button onClick={() => deleteCategory(cat.id)} title="Excluir"
+                      className="h-5 w-5 rounded-lg hover:bg-danger-muted dark:hover:bg-danger/15 text-muted hover:text-danger flex items-center justify-center text-sm transition-colors">
+                      ×
+                    </button>
+                  </div>
+                )
               ))}
             </div>
           </div>

@@ -12,11 +12,13 @@ export default function GoalsPage() {
   const [goals, setGoals]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [goalModal, setGoalModal]       = useState(false);
+  const [editGoalModal, setEditGoalModal] = useState(null);
   const [contribTarget, setContribTarget] = useState(null);
   const [cancelTarget, setCancelTarget]   = useState(null);
   const [saving, setSaving]       = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [goalForm, setGoalForm]   = useState({ name:'', description:'', targetValue:'', targetDate:'' });
+  const [editGoalForm, setEditGoalForm] = useState({ name:'', description:'', targetValue:'', targetDate:'' });
   const [contribForm, setContribForm] = useState({ value:'', date: new Date().toISOString().slice(0,10) });
   const [refundContributions, setRefundContributions] = useState(false);
   const toast = useUIStore((s) => s);
@@ -37,6 +39,31 @@ export default function GoalsPage() {
       await goalsApi.create({ ...goalForm, targetValue: parseFloat(goalForm.targetValue), targetDate: goalForm.targetDate || undefined });
       toast.success('Meta criada!'); setGoalModal(false); setGoalForm({ name:'', description:'', targetValue:'', targetDate:'' }); load();
     } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    finally { setSaving(false); }
+  }
+
+  function openEditGoal(goal) {
+    setEditGoalForm({
+      name: goal.name,
+      description: goal.description ?? '',
+      targetValue: String(goal.targetValue),
+      targetDate: goal.targetDate ? new Date(goal.targetDate).toISOString().slice(0,10) : '',
+    });
+    setEditGoalModal(goal);
+  }
+
+  async function saveEditGoal() {
+    if (!editGoalForm.name || !editGoalForm.targetValue) { toast.error('Preencha nome e valor alvo.'); return; }
+    setSaving(true);
+    try {
+      await goalsApi.update(editGoalModal.id, {
+        name: editGoalForm.name,
+        description: editGoalForm.description || undefined,
+        targetValue: parseFloat(editGoalForm.targetValue),
+        targetDate: editGoalForm.targetDate || undefined,
+      });
+      toast.success('Meta atualizada!'); setEditGoalModal(null); load();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar meta.'); }
     finally { setSaving(false); }
   }
 
@@ -121,6 +148,9 @@ export default function GoalsPage() {
             <Button size="sm" onClick={() => { setContribTarget(goal); setContribForm({ value:'', date: new Date().toISOString().slice(0,10) }); }} className="flex-1 justify-center">
               + Aportar
             </Button>
+            <Button size="sm" variant="ghost" onClick={() => openEditGoal(goal)}>
+              Editar
+            </Button>
             <Button size="sm" variant="ghost" className="text-danger" onClick={() => { setCancelTarget(goal); setRefundContributions(false); }}>
               Cancelar
             </Button>
@@ -182,6 +212,22 @@ export default function GoalsPage() {
           <div className="flex gap-3 justify-end pt-2">
             <Button variant="outline" onClick={() => setGoalModal(false)}>Cancelar</Button>
             <Button onClick={saveGoal} loading={saving}>Criar Meta</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Editar Meta */}
+      <Modal open={!!editGoalModal} onClose={() => setEditGoalModal(null)} title="Editar Meta">
+        <div className="space-y-4">
+          <FormGroup label="Nome" required><Input value={editGoalForm.name} onChange={(e) => setEditGoalForm({...editGoalForm,name:e.target.value})} autoFocus /></FormGroup>
+          <FormGroup label="Descrição"><Input value={editGoalForm.description} onChange={(e) => setEditGoalForm({...editGoalForm,description:e.target.value})} placeholder="Opcional" /></FormGroup>
+          <div className="grid grid-cols-2 gap-3">
+            <FormGroup label="Valor alvo" required hint="o progresso acumulado não é alterado"><Input type="number" min="0" step="0.01" value={editGoalForm.targetValue} onChange={(e) => setEditGoalForm({...editGoalForm,targetValue:e.target.value})} /></FormGroup>
+            <FormGroup label="Data desejada" hint="opcional"><Input type="date" value={editGoalForm.targetDate} onChange={(e) => setEditGoalForm({...editGoalForm,targetDate:e.target.value})} /></FormGroup>
+          </div>
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="outline" onClick={() => setEditGoalModal(null)}>Cancelar</Button>
+            <Button onClick={saveEditGoal} loading={saving}>Salvar Alterações</Button>
           </div>
         </div>
       </Modal>

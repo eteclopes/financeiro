@@ -32,6 +32,33 @@ async function createCategory(userId, { name, type }) {
   return prisma.category.create({ data: { userId, name, type, isDefault: false } });
 }
 
+// Renomeia uma categoria PRÓPRIA do usuário. Segue o mesmo padrão de posse
+// de deleteCategory: a busca já filtra por userId (não por OR com null),
+// então uma categoria padrão do sistema (userId null) nunca é encontrada
+// aqui de propósito — usuário não pode renomear categoria padrão, só as
+// próprias. Isso é idêntico ao comentário existente em deleteCategory.
+async function renameCategory(userId, categoryId, name) {
+  const category = await prisma.category.findFirst({ where: { id: categoryId, userId } });
+  if (!category) {
+    throw new AppError('Categoria não encontrada.', 404, 'CATEGORY_NOT_FOUND');
+  }
+
+  if (name === category.name) return category;
+
+  // Mesma checagem de duplicidade do createCategory (nome único por
+  // usuário+tipo, incluindo categorias padrão compartilhadas) — sem isso o
+  // rename poderia colidir com o @@unique([userId, name, type]) do schema
+  // e vazar um erro 500 de constraint em vez de uma mensagem amigável.
+  const duplicate = await prisma.category.findFirst({
+    where: { type: category.type, name, OR: [{ userId: null }, { userId }] },
+  });
+  if (duplicate) {
+    throw new AppError('Já existe uma categoria com este nome.', 409, 'CATEGORY_ALREADY_EXISTS');
+  }
+
+  return prisma.category.update({ where: { id: categoryId }, data: { name } });
+}
+
 async function deleteCategory(userId, categoryId) {
   const category = await prisma.category.findFirst({ where: { id: categoryId, userId } });
   if (!category) {
@@ -116,4 +143,4 @@ async function getBudgetStatus(userId, monthId) {
   });
 }
 
-module.exports = { listCategories, createCategory, deleteCategory, updateCategoryLimit, getBudgetStatus };
+module.exports = { listCategories, createCategory, renameCategory, deleteCategory, updateCategoryLimit, getBudgetStatus };

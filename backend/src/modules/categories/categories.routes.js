@@ -4,7 +4,7 @@ const authenticate = require('../../middlewares/authenticate');
 const validate = require('../../middlewares/validate');
 const AppError = require('../../utils/AppError');
 const service = require('./categories.service');
-const { createCategorySchema, updateCategorySchema } = require('./categories.validators');
+const { createCategorySchema, updateCategorySchema, renameCategorySchema } = require('./categories.validators');
 const { parseMonthId } = require('../../utils/parseParams');
 
 const router = Router();
@@ -46,6 +46,17 @@ router.patch(
   validate(updateCategorySchema),
   asyncHandler(async (req, res) => {
     const category = await service.updateCategoryLimit(req.userId, BigInt(req.params.id), req.body.monthlyLimit);
+    res.json({ category });
+  })
+);
+
+// Renomeia uma categoria própria do usuário (categorias padrão do sistema
+// não podem ser renomeadas — ver comentário em categories.service.renameCategory).
+router.patch(
+  '/:id',
+  validate(renameCategorySchema),
+  asyncHandler(async (req, res) => {
+    const category = await service.renameCategory(req.userId, BigInt(req.params.id), req.body.name);
     res.json({ category });
   })
 );

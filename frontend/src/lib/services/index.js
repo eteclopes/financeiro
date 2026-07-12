@@ -24,6 +24,7 @@ export const monthsApi = {
 export const categoriesApi = {
   list: (type) => api.get('/categories', { params: { type } }),
   create: (data) => api.post('/categories', data),
+  rename: (id, name) => api.patch(`/categories/${id}`, { name }),
   delete: (id) => api.delete(`/categories/${id}`),
   updateLimit: (id, monthlyLimit) => api.patch(`/categories/${id}/limit`, { monthlyLimit }),
   budgets: (monthId) => api.get('/categories/budgets', { params: { monthId } }),

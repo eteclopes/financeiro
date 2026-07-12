@@ -36,7 +36,7 @@ function createPrismaMock() {
     incomeTemplate: modelMock(['count', 'findMany']),
     fixedExpenseTemplate: modelMock(['count', 'findMany']),
     debt: modelMock(['findMany', 'findFirst', 'aggregate', 'create', 'update', 'count']),
-    category: modelMock(['findMany', 'findFirst']),
+    category: modelMock(['findMany', 'findFirst', 'update']),
     goal: modelMock(['findMany', 'create', 'findFirst', 'update', 'count']),
     goalContribution: modelMock(['create', 'findMany']),
     simulation: modelMock(['findFirst', 'delete']),

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { cardsApi, categoriesApi } from '../lib/services';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState, ProgressBar } from '../components/ui/index';
-import { Modal, FormGroup, Input, Select } from '../components/ui/Modal';
+import { Modal, ConfirmDialog, FormGroup, Input, Select } from '../components/ui/Modal';
 import { CategorySelect } from '../components/ui/CategorySelect';
 import { useUIStore } from '../store/uiStore';
 
@@ -20,6 +20,9 @@ export default function CardsPage() {
   const [tab, setTab] = useState('invoices');
 
   const [cardModal, setCardModal]   = useState(false);
+  const [editCardModal, setEditCardModal] = useState(null); // cartão sendo editado, ou null
+  const [deactivateTarget, setDeactivateTarget] = useState(null);
+  const [deactivating, setDeactivating] = useState(false);
   const [purchaseModal, setPurchaseModal] = useState(false);
   const [payTarget, setPayTarget]   = useState(null);
   const [saving, setSaving]         = useState(false);
@@ -27,6 +30,7 @@ export default function CardsPage() {
   const [invMethod, setInvMethod]   = useState('pix');
 
   const [cardForm, setCardForm] = useState({ name:'', color: COLORS[0], limitValue:'', closingDay:'20', dueDay:'27' });
+  const [editCardForm, setEditCardForm] = useState({ name:'', color: COLORS[0], limitValue:'', closingDay:'', dueDay:'' });
   const [purchaseForm, setPurchaseForm] = useState({ description:'', categoryId:'', totalValue:'', installmentsCount:'1', purchaseDate: new Date().toISOString().slice(0,10) });
 
   const toast = useUIStore((s) => s);
@@ -35,9 +39,18 @@ export default function CardsPage() {
     setLoading(true);
     try {
       const [c, cats] = await Promise.all([cardsApi.list(), categoriesApi.list('expense')]);
-      setCards(c.data.cards ?? []);
+      const list = c.data.cards ?? [];
+      setCards(list);
       setCategories(cats.data.categories ?? []);
-      if (!selected && c.data.cards?.length > 0) setSelected(c.data.cards[0]);
+      // Usa a forma funcional para sempre reavaliar contra o valor atual de
+      // `selected` (evita depender dele no array de deps do useCallback) —
+      // depois de editar/desativar o cartão selecionado, isto garante que o
+      // painel de detalhe mostre os dados atualizados na hora, em vez de
+      // continuar com o objeto antigo até uma seleção manual.
+      setSelected((prev) => {
+        if (!prev) return list[0] ?? null;
+        return list.find((card) => String(card.id) === String(prev.id)) ?? list[0] ?? null;
+      });
     } catch { toast.error('Erro ao carregar cartões.'); }
     finally { setLoading(false); }
   }, []);
@@ -61,6 +74,42 @@ export default function CardsPage() {
       toast.success('Cartão criado!'); setCardModal(false); loadCards();
     } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
     finally { setSaving(false); }
+  }
+
+  function openEditCard(card) {
+    setEditCardForm({
+      name: card.name,
+      color: card.color ?? COLORS[0],
+      limitValue: String(card.limitValue),
+      closingDay: String(card.closingDay),
+      dueDay: String(card.dueDay),
+    });
+    setEditCardModal(card);
+  }
+
+  async function saveEditCard() {
+    if (!editCardForm.name || !editCardForm.limitValue) { toast.error('Preencha nome e limite.'); return; }
+    setSaving(true);
+    try {
+      await cardsApi.update(editCardModal.id, {
+        ...editCardForm,
+        limitValue: parseFloat(editCardForm.limitValue),
+        closingDay: parseInt(editCardForm.closingDay),
+        dueDay: parseInt(editCardForm.dueDay),
+      });
+      toast.success('Cartão atualizado!'); setEditCardModal(null); loadCards();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar cartão.'); }
+    finally { setSaving(false); }
+  }
+
+  async function handleDeactivate() {
+    setDeactivating(true);
+    try {
+      await cardsApi.deactivate(deactivateTarget.id);
+      toast.success('Cartão desativado. O histórico de faturas e compras foi mantido.');
+      setDeactivateTarget(null); loadCards();
+    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao desativar cartão.'); }
+    finally { setDeactivating(false); }
   }
 
   async function savePurchase() {
@@ -109,14 +158,22 @@ export default function CardsPage() {
             {cards.map((card) => {
               const pct = Math.min(Math.round((card.usedLimit / Number(card.limitValue)) * 100), 100);
               const isSelected = String(selected?.id) === String(card.id);
+              const isInactive = card.active === false;
               return (
-                <button key={card.id} onClick={() => setSelected(card)} className={`text-left rounded-3xl p-5 text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${isSelected ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-bg shadow-xl' : 'shadow-md'}`}
+                <button key={card.id} onClick={() => setSelected(card)} className={`relative text-left rounded-3xl p-5 text-white transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] ${isSelected ? 'ring-2 ring-white/50 ring-offset-2 ring-offset-bg shadow-xl' : 'shadow-md'} ${isInactive ? 'grayscale opacity-60' : ''}`}
                   style={{ background: `linear-gradient(135deg, ${card.color ?? '#10B981'}, ${card.color ?? '#10B981'}99)` }}>
+                  {isInactive && (
+                    <span className="absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-wider bg-black/30 px-2 py-1 rounded-lg">
+                      Desativado
+                    </span>
+                  )}
                   <div className="flex justify-between items-start mb-4">
                     <p className="font-bold text-lg">{card.name}</p>
-                    <span className="text-white/60 text-xs bg-white/10 px-2 py-1 rounded-lg">
-                      Fecha d{card.closingDay}
-                    </span>
+                    {!isInactive && (
+                      <span className="text-white/60 text-xs bg-white/10 px-2 py-1 rounded-lg">
+                        Fecha d{card.closingDay}
+                      </span>
+                    )}
                   </div>
                   <p className="font-mono text-2xl font-bold mb-1">{formatCurrency(card.availableLimit)}</p>
                   <p className="text-white/60 text-xs mb-3">disponível de {formatCurrency(card.limitValue)}</p>
@@ -134,12 +191,15 @@ export default function CardsPage() {
             <Card padding={false}>
               <div className="flex items-center justify-between px-5 py-4 border-b border-border dark:border-white/[0.06] flex-wrap gap-3">
                 <div>
-                  <h3 className="font-semibold text-slate-900 dark:text-zinc-50">{selected.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-slate-900 dark:text-zinc-50">{selected.name}</h3>
+                    {selected.active === false && <Badge variant="default">Desativado</Badge>}
+                  </div>
                   <p className="text-xs text-muted mt-0.5">
                     Fecha dia {selected.closingDay} · Vence dia {selected.dueDay} · Limite {formatCurrency(selected.limitValue)}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center flex-wrap">
                   <div className="flex gap-1 bg-subtle dark:bg-white/5 p-1 rounded-xl">
                     {['invoices'].map((t) => (
                       <button key={t} onClick={() => setTab(t)}
@@ -148,9 +208,17 @@ export default function CardsPage() {
                       </button>
                     ))}
                   </div>
-                  <Button size="sm" onClick={() => { setPurchaseForm({ description:'', categoryId:'', totalValue:'', installmentsCount:'1', purchaseDate: new Date().toISOString().slice(0,10) }); setPurchaseModal(true); }}>
-                    + Compra
-                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openEditCard(selected)}>Editar</Button>
+                  {selected.active !== false && (
+                    <Button variant="ghost" size="sm" onClick={() => setDeactivateTarget(selected)}>Desativar</Button>
+                  )}
+                  {selected.active === false ? (
+                    <span className="text-xs text-muted italic">Não aceita novas compras</span>
+                  ) : (
+                    <Button size="sm" onClick={() => { setPurchaseForm({ description:'', categoryId:'', totalValue:'', installmentsCount:'1', purchaseDate: new Date().toISOString().slice(0,10) }); setPurchaseModal(true); }}>
+                      + Compra
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -212,6 +280,45 @@ export default function CardsPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Modal Editar Cartão */}
+      <Modal open={!!editCardModal} onClose={() => setEditCardModal(null)} title={`Editar Cartão — ${editCardModal?.name ?? ''}`} size="sm">
+        <div className="space-y-4">
+          <FormGroup label="Nome do cartão" required><Input value={editCardForm.name} onChange={(e) => setEditCardForm({...editCardForm,name:e.target.value})} autoFocus /></FormGroup>
+          <FormGroup label="Limite de crédito" required hint="pode ser alterado a qualquer momento">
+            <Input type="number" min="0" step="0.01" value={editCardForm.limitValue} onChange={(e) => setEditCardForm({...editCardForm,limitValue:e.target.value})} />
+          </FormGroup>
+          <div className="grid grid-cols-2 gap-3">
+            <FormGroup label="Dia de fechamento"><Input type="number" min="1" max="31" value={editCardForm.closingDay} onChange={(e) => setEditCardForm({...editCardForm,closingDay:e.target.value})} /></FormGroup>
+            <FormGroup label="Dia de vencimento"><Input type="number" min="1" max="31" value={editCardForm.dueDay} onChange={(e) => setEditCardForm({...editCardForm,dueDay:e.target.value})} /></FormGroup>
+          </div>
+          <FormGroup label="Cor do cartão">
+            <div className="flex gap-2 flex-wrap mt-1">
+              {COLORS.map((c) => (
+                <button key={c} onClick={() => setEditCardForm({...editCardForm,color:c})}
+                  className={`h-9 w-9 rounded-xl transition-all hover:scale-110 ${editCardForm.color===c?'ring-2 ring-offset-2 ring-slate-400 scale-110':''}`}
+                  style={{ backgroundColor: c }} />
+              ))}
+            </div>
+          </FormGroup>
+          <div className="flex gap-3 justify-end pt-1">
+            <Button variant="outline" onClick={() => setEditCardModal(null)}>Cancelar</Button>
+            <Button onClick={saveEditCard} loading={saving}>Salvar Alterações</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Confirmação de desativação */}
+      <ConfirmDialog
+        open={!!deactivateTarget}
+        onClose={() => setDeactivateTarget(null)}
+        onConfirm={handleDeactivate}
+        loading={deactivating}
+        title="Desativar cartão"
+        confirmLabel="Desativar"
+        description={`"${deactivateTarget?.name}" deixará de aceitar novas compras e sairá da sua lista de cartões ativos. As faturas e compras já registradas continuam salvas no histórico — essa ação não pode ser desfeita pelo app.`}
+      />
+
 
       {/* Modal Nova Compra */}
       <Modal open={purchaseModal} onClose={() => setPurchaseModal(false)} title={`Nova Compra — ${selected?.name}`}>
