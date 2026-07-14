@@ -2,8 +2,7 @@ const prisma = require('../../config/prisma');
 const monthsService = require('../months/months.service');
 const savingsService = require('../savings/savings.service');
 const { getAllMonthsChronological } = require('../_shared/financialMetrics');
-
-function round2(v) { return Math.round(v * 100) / 100; }
+const { round2 } = require('../../utils/math');
 
 const PERIODS = { 3: 3, 6: 6, 12: 12 };
 

@@ -33,8 +33,8 @@ function createPrismaMock() {
     cardPurchase: modelMock(['create', 'findMany', 'groupBy', 'deleteMany']),
     expense: modelMock(['findMany', 'findFirst', 'aggregate', 'groupBy', 'count', 'update', 'updateMany', 'create', 'deleteMany']),
     income: modelMock(['aggregate', 'groupBy', 'create', 'findFirst']),
-    incomeTemplate: modelMock(['count', 'findMany']),
-    fixedExpenseTemplate: modelMock(['count', 'findMany']),
+    incomeTemplate: modelMock(['count', 'findMany', 'aggregate']),
+    fixedExpenseTemplate: modelMock(['count', 'findMany', 'aggregate']),
     debt: modelMock(['findMany', 'findFirst', 'aggregate', 'create', 'update', 'count']),
     category: modelMock(['findMany', 'findFirst', 'update']),
     goal: modelMock(['findMany', 'create', 'findFirst', 'update', 'count']),
@@ -73,8 +73,10 @@ function installDefaults(mock) {
   mock.income.groupBy.mockResolvedValue([]);
   mock.incomeTemplate.count.mockResolvedValue(0);
   mock.incomeTemplate.findMany.mockResolvedValue([]);
+  mock.incomeTemplate.aggregate.mockResolvedValue({ _sum: { value: null } });
   mock.fixedExpenseTemplate.count.mockResolvedValue(0);
   mock.fixedExpenseTemplate.findMany.mockResolvedValue([]);
+  mock.fixedExpenseTemplate.aggregate.mockResolvedValue({ _sum: { value: null } });
   mock.debt.findMany.mockResolvedValue([]);
   mock.debt.aggregate.mockResolvedValue({ _sum: { remainingBalance: null, totalValue: null } });
   mock.debt.count.mockResolvedValue(0);

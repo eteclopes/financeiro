@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMonthStore } from '../store/monthStore';
 import { categoriesApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState, Skeleton, ProgressBar } from '../components/ui/index';
 import { Modal, FormGroup, Input, Select } from '../components/ui/Modal';
@@ -59,7 +60,7 @@ export default function BudgetsPage() {
       toast.success('Orçamento salvo.');
       setModalOpen(false);
       load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao salvar orçamento.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao salvar orçamento.')); }
     finally { setSaving(false); }
   }
 
@@ -68,7 +69,7 @@ export default function BudgetsPage() {
       await categoriesApi.updateLimit(budget.categoryId, null);
       toast.success('Limite removido.');
       load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao remover limite.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao remover limite.')); }
   }
 
   const categoriesWithoutBudget = categories.filter(

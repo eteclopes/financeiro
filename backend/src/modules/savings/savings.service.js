@@ -1,10 +1,7 @@
 const prisma = require('../../config/prisma');
 const AppError = require('../../utils/AppError');
 const { recordAuditLog } = require('../auditLog/auditLog.service');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../../utils/math');
 
 async function getCurrentBalance(userId) {
   const last = await prisma.savingsTransaction.findFirst({

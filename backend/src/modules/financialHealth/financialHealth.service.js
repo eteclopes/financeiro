@@ -3,10 +3,7 @@ const monthsService = require('../months/months.service');
 const savingsService = require('../savings/savings.service');
 const cardsService = require('../cards/cards.service');
 const { getRecentMonths } = require('../_shared/financialMetrics');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../../utils/math');
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);

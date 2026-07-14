@@ -3,10 +3,7 @@ const AppError = require('../../utils/AppError');
 const monthsService = require('../months/months.service');
 const expensesService = require('../expenses/expenses.service');
 const { recordAuditLog } = require('../auditLog/auditLog.service');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../../utils/math');
 
 /**
  * O valor de cada parcela nunca é "total / parcelas" fixo e cego — é sempre

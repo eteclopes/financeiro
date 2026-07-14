@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { categoriesApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { Card, CardHeader, Badge, Button } from '../components/ui/index';
 import { Modal, FormGroup, Input, Select } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
@@ -33,7 +34,7 @@ export default function SettingsPage() {
       await updateProfile(name);
       toast.success('Nome atualizado!');
       setEditNameModal(false);
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar nome.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao atualizar nome.')); }
     finally { setSavingName(false); }
   }
 
@@ -50,13 +51,13 @@ export default function SettingsPage() {
     try {
       await categoriesApi.create({ name: catName.trim(), type: catType });
       toast.success('Categoria criada!'); setCatName(''); loadCats();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSavingCat(false); }
   }
 
   async function deleteCategory(id) {
     try { await categoriesApi.delete(id); toast.success('Categoria removida.'); loadCats(); }
-    catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Categoria em uso ou não encontrada.'); }
+    catch (e) { toast.error(extractErrorMessage(e, 'Categoria em uso ou não encontrada.')); }
   }
 
   function startRename(cat) { setEditingCatId(cat.id); setEditingCatName(cat.name); }
@@ -70,7 +71,7 @@ export default function SettingsPage() {
       await categoriesApi.rename(id, name);
       toast.success('Categoria renomeada!');
       cancelRename(); loadCats();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao renomear.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao renomear.')); }
     finally { setRenamingCat(false); }
   }
 

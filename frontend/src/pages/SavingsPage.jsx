@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { savingsApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState } from '../components/ui/index';
 import { Modal, ConfirmDialog, FormGroup, Input } from '../components/ui/Modal';
@@ -44,7 +45,7 @@ export default function SavingsPage() {
       await fn({ value: parseFloat(form.value), date: form.date, observation: form.observation });
       toast.success(modal === 'deposit' ? 'Depósito realizado!' : 'Retirada realizada!');
       setModal(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -67,7 +68,7 @@ export default function SavingsPage() {
         observation: editTxForm.observation || undefined,
       });
       toast.success('Lançamento atualizado!'); setEditTxModal(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao atualizar.')); }
     finally { setSaving(false); }
   }
 
@@ -76,7 +77,7 @@ export default function SavingsPage() {
     try {
       await savingsApi.delete(deleteTxTarget.id);
       toast.success('Lançamento excluído.'); setDeleteTxTarget(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao excluir.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao excluir.')); }
     finally { setDeletingTx(false); }
   }
 

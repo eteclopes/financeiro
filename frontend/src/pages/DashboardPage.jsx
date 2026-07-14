@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { useMonthStore } from '../store/monthStore';
 import { dashboardApi, projectionsApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, CardHeader, Badge, ProgressBar, Skeleton, EmptyState } from '../components/ui/index';
 import { useUIStore } from '../store/uiStore';
@@ -58,7 +59,7 @@ export default function DashboardPage() {
       setData(dash.data);
       setProj(p.data.projection ?? []);
     } catch (e) {
-      const msg = e?.response?.data?.error?.message ?? 'Não foi possível carregar o dashboard.';
+      const msg = extractErrorMessage(e, 'Não foi possível carregar o dashboard.');
       setError(msg);
       errorToast(msg);
     } finally {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMonthStore } from '../store/monthStore';
 import { goalsApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency } from '../lib/format';
 import { Card, Badge, Button, EmptyState, ProgressBar } from '../components/ui/index';
 import { Modal, FormGroup, Input } from '../components/ui/Modal';
@@ -38,7 +39,7 @@ export default function GoalsPage() {
     try {
       await goalsApi.create({ ...goalForm, targetValue: parseFloat(goalForm.targetValue), targetDate: goalForm.targetDate || undefined });
       toast.success('Meta criada!'); setGoalModal(false); setGoalForm({ name:'', description:'', targetValue:'', targetDate:'' }); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -63,7 +64,7 @@ export default function GoalsPage() {
         targetDate: editGoalForm.targetDate || undefined,
       });
       toast.success('Meta atualizada!'); setEditGoalModal(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar meta.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao atualizar meta.')); }
     finally { setSaving(false); }
   }
 
@@ -73,7 +74,7 @@ export default function GoalsPage() {
     try {
       await goalsApi.contribute(contribTarget.id, { value: parseFloat(contribForm.value), date: contribForm.date, monthId: selectedMonthId });
       toast.success('Aporte registrado!'); setContribTarget(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -82,7 +83,7 @@ export default function GoalsPage() {
     try {
       await goalsApi.cancel(cancelTarget.id, { refundContributions, monthId: selectedMonthId });
       toast.success('Meta cancelada.'); setCancelTarget(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setCancelling(false); }
   }
 

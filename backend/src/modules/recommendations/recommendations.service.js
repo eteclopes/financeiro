@@ -3,8 +3,7 @@ const monthsService = require('../months/months.service');
 const savingsService = require('../savings/savings.service');
 const { getAverageRecentIncome, getAverageRecentExpense } = require('../_shared/financialMetrics');
 const { addMonths } = require('../../utils/monthMath');
-
-function round2(v) { return Math.round(v * 100) / 100; }
+const { round2 } = require('../../utils/math');
 
 /**
  * Todas as recomendações são derivadas de fórmulas explicáveis aplicadas

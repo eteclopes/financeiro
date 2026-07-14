@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { cardsApi, categoriesApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState, ProgressBar } from '../components/ui/index';
 import { Modal, ConfirmDialog, FormGroup, Input, Select } from '../components/ui/Modal';
@@ -74,7 +75,7 @@ export default function CardsPage() {
     try {
       await cardsApi.create({ ...cardForm, limitValue: parseFloat(cardForm.limitValue), closingDay: parseInt(cardForm.closingDay), dueDay: parseInt(cardForm.dueDay) });
       toast.success('Cartão criado!'); setCardModal(false); loadCards();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -100,7 +101,7 @@ export default function CardsPage() {
         dueDay: parseInt(editCardForm.dueDay),
       });
       toast.success('Cartão atualizado!'); setEditCardModal(null); loadCards();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar cartão.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao atualizar cartão.')); }
     finally { setSaving(false); }
   }
 
@@ -110,7 +111,7 @@ export default function CardsPage() {
       await cardsApi.deactivate(deactivateTarget.id);
       toast.success('Cartão desativado. O histórico de faturas e compras foi mantido.');
       setDeactivateTarget(null); loadCards();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao desativar cartão.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao desativar cartão.')); }
     finally { setDeactivating(false); }
   }
 
@@ -128,7 +129,7 @@ export default function CardsPage() {
     } catch (e) {
       // Mensagem do backend já é acionável (ex: sugere desativar quando há
       // histórico em mês encerrado) — não precisa de tratamento especial.
-      toast.error(e?.response?.data?.error?.message ?? 'Erro ao excluir cartão.');
+      toast.error(extractErrorMessage(e, 'Erro ao excluir cartão.'));
     }
     finally { setDeletingCard(false); }
   }
@@ -140,7 +141,7 @@ export default function CardsPage() {
       const cat = purchaseForm.categoryId || (categories[0]?.id ?? '');
       await cardsApi.createPurchase(selected.id, { ...purchaseForm, totalValue: parseFloat(purchaseForm.totalValue), installmentsCount: parseInt(purchaseForm.installmentsCount), categoryId: String(cat) });
       toast.success('Compra registrada!'); setPurchaseModal(false); loadCards(); loadInvoices();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -149,7 +150,7 @@ export default function CardsPage() {
     try {
       await cardsApi.payInvoice(payTarget.id, { paymentMethod: invMethod });
       toast.success('Fatura paga com sucesso!'); setPayTarget(null); loadInvoices(); loadCards();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setPaying(false); }
   }
 

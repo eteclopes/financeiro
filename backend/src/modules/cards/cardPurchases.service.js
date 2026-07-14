@@ -5,10 +5,7 @@ const expensesService = require('../expenses/expenses.service');
 const cardsService = require('./cards.service');
 const { addMonths } = require('../../utils/monthMath');
 const { recordAuditLog } = require('../auditLog/auditLog.service');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../../utils/math');
 
 function clampDay(year, month, day) {
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();

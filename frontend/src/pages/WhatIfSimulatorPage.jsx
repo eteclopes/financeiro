@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { useMonthStore } from '../store/monthStore';
 import { simulatorsApi, debtsApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState } from '../components/ui/index';
 import { FormGroup, Input, Select } from '../components/ui/Modal';
@@ -68,7 +69,7 @@ export default function WhatIfSimulatorPage() {
     try {
       const r = await simulatorsApi.whatIfPreview({ monthId: selectedMonthId, type, input, monthsAhead: 12 });
       setResult(r.data);
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao simular.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao simular.')); }
     finally { setLoading(false); }
   }
 
@@ -78,13 +79,13 @@ export default function WhatIfSimulatorPage() {
     try {
       await simulatorsApi.whatIfSave({ monthId: selectedMonthId, type, name, input, monthsAhead: 12 });
       toast.success('Simulação salva!'); setName(''); loadSaved();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao salvar.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao salvar.')); }
     finally { setSaving(false); }
   }
 
   async function handleDelete(id) {
     try { await simulatorsApi.deleteSaved(id); toast.success('Removida.'); loadSaved(); }
-    catch { toast.error('Erro ao excluir.'); }
+    catch (e) { toast.error(extractErrorMessage(e, 'Erro ao excluir.')); }
   }
 
   const activeDebts = debts.filter((d) => d.status === 'active');
@@ -112,6 +113,11 @@ export default function WhatIfSimulatorPage() {
         </FormGroup>
       </div>
     );
+    // reduce_category e cancel_subscription pedem o mesmo tipo de input
+    // (um valor mensal) porque, hoje, o backend aplica exatamente o mesmo
+    // cálculo para os dois — nenhum dos dois pergunta QUAL categoria, nem
+    // usa o histórico real de gastos dela (ver nota em
+    // whatIfSimulator.service.js). Funciona, mas é uma simplificação.
     const amountLabels = {
       save_monthly: 'Valor a guardar por mês',
       reduce_category: 'Redução mensal nos gastos',
@@ -235,8 +241,15 @@ export default function WhatIfSimulatorPage() {
         ) : (
           <div className="space-y-2">
             {saved.map((sim) => {
-              const lastResult = sim.results?.[sim.results.length - 1];
-              const gain = lastResult ? Number(lastResult.difference) : 0;
+              // Antes: usava só `lastResult.difference` (o impacto do
+              // ÚLTIMO mês projetado, isoladamente) rotulado como "/mês" —
+              // um número bem diferente do "Ganho acumulado" mostrado na
+              // prévia ao vivo (que soma o impacto de TODOS os meses). As
+              // duas seções pareciam mostrar a mesma coisa, mas eram
+              // métricas diferentes. Agora as duas usam a mesma conta
+              // (soma de `difference` de todos os meses salvos), então o
+              // número aqui é diretamente comparável ao de uma prévia nova.
+              const gain = (sim.results ?? []).reduce((sum, r) => sum + Number(r.difference), 0);
               return (
                 <div key={sim.id} className="flex items-center justify-between p-3.5 bg-subtle dark:bg-white/[0.04] rounded-xl">
                   <div>
@@ -246,8 +259,9 @@ export default function WhatIfSimulatorPage() {
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className={`text-sm font-mono font-bold ${gain >= 0 ? 'text-primary-dark' : 'text-danger-dark'}`}>
-                      {gain >= 0 ? '+' : ''}{formatCurrency(gain)}/mês
+                    <span className={`text-sm font-mono font-bold ${gain >= 0 ? 'text-primary-dark' : 'text-danger-dark'}`}
+                      title="Ganho acumulado ao longo de todo o período simulado">
+                      {gain >= 0 ? '+' : ''}{formatCurrency(gain)}
                     </span>
                     <Button variant="ghost" size="sm" className="text-danger h-8 w-8 !px-0 justify-center"
                       onClick={() => handleDelete(sim.id)}>×</Button>

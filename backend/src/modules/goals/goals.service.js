@@ -2,10 +2,7 @@ const prisma = require('../../config/prisma');
 const AppError = require('../../utils/AppError');
 const monthsService = require('../months/months.service');
 const { recordAuditLog } = require('../auditLog/auditLog.service');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../../utils/math');
 
 function computeProgress(contributions) {
   return contributions.reduce((total, c) => {

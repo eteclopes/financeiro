@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMonthStore } from '../store/monthStore';
 import { incomesApi, categoriesApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, Badge, Button, EmptyState, Skeleton } from '../components/ui/index';
 import { Modal, ConfirmDialog, FormGroup, Input, Select } from '../components/ui/Modal';
@@ -78,7 +79,7 @@ export default function IncomesPage() {
       }
       setModalOpen(false);
       load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao salvar.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao salvar.')); }
     finally { setSaving(false); }
   }
 
@@ -87,7 +88,7 @@ export default function IncomesPage() {
     try {
       await incomesApi.delete(deleteTarget.id);
       toast.success('Receita removida.'); setDeleteTarget(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao excluir.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao excluir.')); }
     finally { setDeleting(false); }
   }
 
@@ -97,7 +98,7 @@ export default function IncomesPage() {
       await incomesApi.deactivateTemplate(stopRecurringTarget.templateId);
       toast.success('Recorrência interrompida. Este mês não é afetado, só os próximos.');
       setStopRecurringTarget(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao parar recorrência.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao parar recorrência.')); }
     finally { setStoppingRecurring(false); }
   }
 

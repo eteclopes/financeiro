@@ -2,31 +2,64 @@ const prisma = require('../../config/prisma');
 const monthsService = require('../months/months.service');
 const debtsService = require('../debts/debts.service');
 const { addMonths } = require('../../utils/monthMath');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../../utils/math');
 
 /**
  * Simula (SEM gravar nada no banco) o cronograma de parcelas de cada
- * dívida ativa para os próximos `monthsAhead` meses, reaproveitando a
- * mesma fórmula usada de verdade no fechamento mensal
- * (debtsService.computeInstallmentValue) — garante que a projeção bate
- * com o que o sistema realmente vai cobrar quando o mês chegar.
+ * dívida ativa para os próximos meses, reaproveitando a mesma fórmula
+ * usada de verdade no fechamento mensal (debtsService.computeInstallmentValue)
+ * — garante que a projeção bate com o que o sistema realmente vai cobrar
+ * quando o mês chegar.
  */
 /**
- * Cronograma de UMA dívida específica, com saldo devedor inicial
- * sobrescrevível — é o que permite ao simulador "E Se" testar "e se eu
- * antecipasse R$X" sem duplicar a fórmula de cálculo de parcela.
+ * Cronograma de UMA dívida específica, alinhado aos meses de calendário
+ * reais em `months` (array de `{ month, year }`, na mesma ordem/tamanho
+ * que o resultado), com saldo devedor inicial sobrescrevível — é o que
+ * permite ao simulador "E Se" testar "e se eu antecipasse R$X" sem
+ * duplicar a fórmula de cálculo de parcela.
+ *
+ * IMPORTANTE (correção de alinhamento): o mês inicial de uma projeção
+ * (índice 0) quase sempre JÁ TEM sua parcela gerada de verdade — ela
+ * nasce no fechamento do mês anterior (ou na criação da dívida, se for
+ * o mês de origem). Antes, esta função ignorava isso e simplesmente
+ * "adivinhava" a parcela seguinte pela fórmula a partir de uma contagem
+ * global (`expense.count`), o que empurrava o cronograma inteiro um mês
+ * para frente: o índice 0 mostrava o valor da parcela do mês SEGUINTE, e
+ * a última parcela real (normalmente maior, pois absorve o resíduo do
+ * saldo) acabava descartada do horizonte por sobrar um índice depois do
+ * fim do laço. Agora, para cada mês da janela, se já existe uma parcela
+ * real gerada (Expense com esse debtId, nesse mês), usamos o valor real
+ * gravado — nunca recalculado — e só passamos a "projetar" pela fórmula a
+ * partir do primeiro mês que ainda não tem parcela gerada. O saldo
+ * (`remaining`) é abatido tanto nos meses reais quanto nos projetados,
+ * pela mesma suposição de "pagamento em dia" que já valia antes — senão
+ * o mês real ficaria contado em dobro (uma vez como parcela já gerada,
+ * outra vez "escondido" dentro do saldo repassado adiante).
  */
-async function getSingleDebtSchedule(debt, monthsAhead, remainingBalanceOverride = null) {
-  const installmentsGenerated = await prisma.expense.count({ where: { debtId: debt.id } });
-  const schedule = new Array(monthsAhead).fill(0);
+async function getSingleDebtSchedule(debt, months, remainingBalanceOverride = null) {
+  const schedule = new Array(months.length).fill(0);
+
+  const existingInstallments = await prisma.expense.findMany({
+    where: { debtId: debt.id },
+    select: { value: true, month: { select: { month: true, year: true } } },
+  });
+  const realValueByMonthKey = new Map(
+    existingInstallments.map((e) => [`${e.month.month}-${e.month.year}`, Number(e.value)])
+  );
 
   let remaining = remainingBalanceOverride ?? Number(debt.remainingBalance);
-  let generated = installmentsGenerated;
+  let generated = existingInstallments.length;
 
-  for (let i = 0; i < monthsAhead; i += 1) {
+  for (let i = 0; i < months.length; i += 1) {
+    const key = `${months[i].month}-${months[i].year}`;
+    const realValue = realValueByMonthKey.get(key);
+
+    if (realValue !== undefined) {
+      schedule[i] = round2(realValue);
+      remaining = round2(remaining - realValue);
+      continue;
+    }
+
     const installmentsRemaining = debt.installmentsCount - generated;
     if (installmentsRemaining <= 0 || remaining <= 0.009) break;
     const value = debtsService.computeInstallmentValue(remaining, installmentsRemaining, Number(debt.installmentValue));
@@ -38,18 +71,23 @@ async function getSingleDebtSchedule(debt, monthsAhead, remainingBalanceOverride
   return schedule;
 }
 
-async function getDebtInstallmentSchedule(userId, monthsAhead) {
+/**
+ * Soma o cronograma de TODAS as dívidas ativas do usuário, mês a mês,
+ * alinhado a `months` (mesma lista de `{ month, year }` usada no resto da
+ * projeção — ver getProjectionComponents).
+ */
+async function getDebtInstallmentSchedule(userId, months) {
   const debts = await prisma.debt.findMany({ where: { userId, status: 'active' } });
-  const schedule = new Array(monthsAhead).fill(0);
+  const schedule = new Array(months.length).fill(0);
 
   // Antes: `for (const debt of debts) { await getSingleDebtSchedule(...) }`
   // rodava uma dívida de cada vez, em série — com N dívidas ativas, N
   // round-trips ao banco um atrás do outro. Mesmo cálculo, mesmas queries,
   // agora disparadas em paralelo (Promise.all) em vez de esperar uma
   // terminar para começar a próxima.
-  const perDebtSchedules = await Promise.all(debts.map((debt) => getSingleDebtSchedule(debt, monthsAhead)));
+  const perDebtSchedules = await Promise.all(debts.map((debt) => getSingleDebtSchedule(debt, months)));
   for (const debtSchedule of perDebtSchedules) {
-    for (let i = 0; i < monthsAhead; i += 1) {
+    for (let i = 0; i < months.length; i += 1) {
       schedule[i] = round2(schedule[i] + debtSchedule[i]);
     }
   }
@@ -106,7 +144,7 @@ async function getProjectionComponents(userId, startMonthId, monthsAhead) {
   // montar `months` inteiro antes e disparar as buscas de cartão em
   // paralelo, na mesma ordem (Promise.all preserva a ordem do array).
   const [debtSchedule, recurring, cardSchedule] = await Promise.all([
-    getDebtInstallmentSchedule(userId, monthsAhead),
+    getDebtInstallmentSchedule(userId, months),
     getActiveRecurringTotals(userId),
     Promise.all(months.map((ref) => getCardInstallmentsForMonth(userId, ref.month, ref.year))),
   ]);

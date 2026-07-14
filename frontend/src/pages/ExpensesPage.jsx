@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useMonthStore } from '../store/monthStore';
 import { expensesApi, debtsApi, categoriesApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, Badge, Button, EmptyState, Skeleton, TabGroup } from '../components/ui/index';
 import { Modal, ConfirmDialog, FormGroup, Input, Select } from '../components/ui/Modal';
@@ -94,7 +95,7 @@ export default function ExpensesPage() {
       toast.success('Pagamento registrado com sucesso.');
       setPayModal(null);
       load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao pagar.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao pagar.')); }
     finally { setPaying(false); }
   }
 
@@ -105,7 +106,7 @@ export default function ExpensesPage() {
       const cat = varForm.categoryId || (categories[0]?.id ?? '');
       await expensesApi.createVariable({ ...varForm, value: parseFloat(varForm.value), categoryId: String(cat), monthId: selectedMonthId });
       toast.success('Despesa variável criada.'); setVarModal(false); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -121,7 +122,7 @@ export default function ExpensesPage() {
         observation: editVarForm.observation || undefined,
       });
       toast.success('Despesa atualizada.'); setEditVarModal(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao atualizar despesa.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao atualizar despesa.')); }
     finally { setSaving(false); }
   }
 
@@ -132,7 +133,7 @@ export default function ExpensesPage() {
       const cat = fixForm.categoryId || (categories[0]?.id ?? '');
       await expensesApi.createFixed({ ...fixForm, value: parseFloat(fixForm.value), dueDay: parseInt(fixForm.dueDay), categoryId: String(cat), monthId: selectedMonthId });
       toast.success('Despesa fixa criada.'); setFixModal(false); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -146,7 +147,7 @@ export default function ExpensesPage() {
         dueDay: parseInt(editFixForm.dueDay),
       });
       toast.success('Despesa fixa atualizada. Próximos meses refletirão a mudança.'); setEditFixModal(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -161,7 +162,7 @@ export default function ExpensesPage() {
         toast.success('Despesa removida.');
       }
       setDeleteTarget(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao remover.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao remover.')); }
     finally { setSaving(false); }
   }
 
@@ -172,7 +173,7 @@ export default function ExpensesPage() {
       const cat = debtForm.categoryId || (categories[0]?.id ?? '');
       await debtsApi.create({ ...debtForm, totalValue: parseFloat(debtForm.totalValue), installmentsCount: parseInt(debtForm.installmentsCount), dueDay: parseInt(debtForm.dueDay), categoryId: String(cat), monthId: selectedMonthId });
       toast.success('Dívida criada com sucesso.'); setDebtModal(false); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -181,7 +182,7 @@ export default function ExpensesPage() {
     try {
       await expensesApi.delete(expense.id);
       toast.success('Despesa removida.'); setDeleteTarget(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setDeleting(false); }
   }
 
@@ -196,7 +197,7 @@ export default function ExpensesPage() {
         flexiblePayment: editDebtForm.flexiblePayment,
       });
       toast.success('Dívida atualizada.'); setEditDebtModal(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
   }
 
@@ -206,7 +207,7 @@ export default function ExpensesPage() {
       await debtsApi.delete(debt.id);
       toast.success('Dívida removida. A parcela deste mês foi excluída e não haverá novas parcelas.');
       setDeleteTarget(null); load();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao remover dívida.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao remover dívida.')); }
     finally { setDeleting(false); }
   }
 

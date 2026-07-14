@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMonthStore } from '../../store/monthStore';
 import { incomesApi, expensesApi, cardsApi, goalsApi, categoriesApi } from '../../lib/services';
-import { api } from '../../lib/api';
+import { api, extractErrorMessage } from '../../lib/api';
 import { formatCurrency } from '../../lib/format';
 import { Button } from '../ui/index';
 import { Modal, FormGroup, Input, Select } from '../ui/Modal';
@@ -88,7 +88,7 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
       toast.success('Receita adicionada.');
       setModal(null);
       onRefresh();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao salvar.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao salvar.')); }
     finally { setSaving(false); }
   }
 
@@ -112,7 +112,7 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
       toast.success('Despesa adicionada.');
       setModal(null);
       onRefresh();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao salvar.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao salvar.')); }
     finally { setSaving(false); }
   }
 
@@ -124,7 +124,7 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
       toast.success('Pagamento registrado.');
       setModal(null);
       onRefresh();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao pagar.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao pagar.')); }
     finally { setSaving(false); }
   }
 
@@ -136,7 +136,7 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
       toast.success('Fatura paga com sucesso.');
       setModal(null);
       onRefresh();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao pagar fatura.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao pagar fatura.')); }
     finally { setSaving(false); }
   }
 
@@ -152,7 +152,7 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
       toast.success('Aporte registrado.');
       setModal(null);
       onRefresh();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao aportar.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao aportar.')); }
     finally { setSaving(false); }
   }
 
@@ -164,7 +164,7 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
       setModal(null);
       await initialize();
       onRefresh();
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao encerrar mês.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao encerrar mês.')); }
     finally { setClosing(false); }
   }
 

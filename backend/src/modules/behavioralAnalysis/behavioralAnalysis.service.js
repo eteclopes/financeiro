@@ -1,8 +1,7 @@
 const prisma = require('../../config/prisma');
 const monthsService = require('../months/months.service');
 const { getAllMonthsChronological } = require('../_shared/financialMetrics');
-
-function round2(v) { return Math.round(v * 100) / 100; }
+const { round2 } = require('../../utils/math');
 
 // ---- Tendência linear simples (regressão por mínimos quadrados) ----
 // Retorna slope (variação média por período) e direction (up/down/stable).

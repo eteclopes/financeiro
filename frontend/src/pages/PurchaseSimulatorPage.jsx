@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useMonthStore } from '../store/monthStore';
 import { simulatorsApi, cardsApi } from '../lib/services';
+import { extractErrorMessage } from '../lib/api';
 import { formatCurrency } from '../lib/format';
 import { Card, CardHeader, Badge, Button, ProgressBar } from '../components/ui/index';
 import { FormGroup, Input, Select } from '../components/ui/Modal';
@@ -40,7 +41,7 @@ export default function PurchaseSimulatorPage() {
       };
       const r = await simulatorsApi.purchase(payload);
       setResult(r.data);
-    } catch (e) { toast.error(e?.response?.data?.error?.message ?? 'Erro ao simular.'); }
+    } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao simular.')); }
     finally { setLoading(false); }
   }
 
@@ -165,7 +166,10 @@ export default function PurchaseSimulatorPage() {
                 )}
                 {result.waitUntil && (
                   <p className="text-sm text-info-dark">
-                    📅 Aguardar até <strong>{String(result.waitUntil.month).padStart(2,'0')}/{result.waitUntil.year}</strong> para melhor margem financeira.
+                    📅 Aguardar até <strong>{String(result.waitUntil.month).padStart(2,'0')}/{result.waitUntil.year}</strong>
+                    {result.waitUntil.installments > 1
+                      ? <> e parcelar em <strong>{result.waitUntil.installments}x</strong> para melhor margem financeira.</>
+                      : ' para melhor margem financeira, pagando à vista.'}
                   </p>
                 )}
               </div>

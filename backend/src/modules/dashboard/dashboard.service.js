@@ -8,10 +8,7 @@ const alertsService = require('../alerts/alerts.service');
 const recommendationsService = require('../recommendations/recommendations.service');
 const { classifyCommitment } = require('../_shared/commitment');
 const { getAverageRecentIncome } = require('../_shared/financialMetrics');
-
-function round2(value) {
-  return Math.round(value * 100) / 100;
-}
+const { round2 } = require('../../utils/math');
 
 async function getDashboard(userId, monthId) {
   const month = await monthsService.getMonthOrThrow(userId, monthId);
