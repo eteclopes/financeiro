@@ -16,6 +16,7 @@ const simulatorsRoutes = require('../modules/simulators/simulators.routes');
 const recommendationsRoutes = require('../modules/recommendations/recommendations.routes');
 const behavioralAnalysisRoutes = require('../modules/behavioralAnalysis/behavioralAnalysis.routes');
 const historyRoutes = require('../modules/history/history.routes');
+const searchRoutes = require('../modules/search/search.routes');
 const { heavyLimiter } = require('../middlewares/rateLimiters');
 
 const router = Router();
@@ -37,5 +38,6 @@ router.use('/simulators',         heavyLimiter, simulatorsRoutes);
 router.use('/recommendations',    heavyLimiter, recommendationsRoutes);
 router.use('/behavioral-analysis',heavyLimiter, behavioralAnalysisRoutes);
 router.use('/alerts',             alertsRoutes);
+router.use('/search',             searchRoutes);
 
 module.exports = router;

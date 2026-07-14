@@ -8,6 +8,22 @@ import { Modal, ConfirmDialog, FormGroup, Input } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
 import { useThemeStore } from '../store/themeStore';
 
+// No nível do módulo (não dentro de SavingsPage) — mesmo motivo do ajuste
+// em WhatIfSimulatorPage.jsx/GoalsPage.jsx: uma função-componente definida
+// dentro de outro componente perde a identidade estável entre renders.
+// Aqui não há campo de texto (não causava perda de foco), mas o tooltip
+// do gráfico remontava a cada render de SavingsPage sem necessidade.
+function CustomTooltip({ active, payload, label }) {
+  const theme = useThemeStore((s) => s.theme);
+  if (!active || !payload?.length) return null;
+  return (
+    <div className={`rounded-xl p-3 shadow-modal text-xs border ${theme === 'dark' ? 'bg-panel-dark border-white/10' : 'bg-white border-border'}`}>
+      <p className="text-muted mb-1">{label}</p>
+      <p className="font-bold text-primary-dark dark:text-primary-light">{formatCurrency(payload[0]?.value)}</p>
+    </div>
+  );
+}
+
 export default function SavingsPage() {
   const [data, setData]       = useState({ balance: 0, transactions: [] });
   const [loading, setLoading] = useState(true);
@@ -85,16 +101,6 @@ export default function SavingsPage() {
     label: formatShortDate(t.transactionDate),
     saldo: Number(t.balanceAfter),
   }));
-
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    return (
-      <div className={`rounded-xl p-3 shadow-modal text-xs border ${theme === 'dark' ? 'bg-panel-dark border-white/10' : 'bg-white border-border'}`}>
-        <p className="text-muted mb-1">{label}</p>
-        <p className="font-bold text-primary-dark dark:text-primary-light">{formatCurrency(payload[0]?.value)}</p>
-      </div>
-    );
-  };
 
   return (
     <div className="space-y-5 animate-fade-in">

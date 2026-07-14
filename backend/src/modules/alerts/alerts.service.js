@@ -22,6 +22,9 @@ async function gatherContext(userId, monthId) {
   const idx = allMonths.findIndex((m) => m.id === monthId);
   const previousMonth = idx > 0 ? allMonths[idx - 1] : null;
 
+  const now = new Date();
+  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
   const [
     incomeAgg,
     expensesAgg,
@@ -33,6 +36,7 @@ async function gatherContext(userId, monthId) {
     activeGoals,
     debtsCreatedThisMonthAgg,
     paidTowardDebtThisMonthAgg,
+    upcomingBills,
   ] = await Promise.all([
     prisma.income.aggregate({ where: { userId, monthId }, _sum: { value: true } }),
     prisma.expense.aggregate({ where: { userId, monthId, deletedAt: null }, _sum: { value: true } }),
@@ -56,6 +60,23 @@ async function gatherContext(userId, monthId) {
     prisma.expense.aggregate({
       where: { userId, monthId, type: 'priority', deletedAt: null },
       _sum: { paidAmount: true },
+    }),
+    // Contas a vencer nos próximos 7 dias — busca por DATA REAL DE
+    // CALENDÁRIO (não por mês/`monthId`), porque uma conta "perto de
+    // vencer" é uma pergunta sobre o relógio de verdade, não sobre qual
+    // mês está selecionado na tela: perto da virada do mês, uma conta do
+    // mês seguinte pode já estar a poucos dias de vencer. Não inclui
+    // `status: 'late'` de propósito — atraso já tem seu próprio alerta
+    // (`late_bills` abaixo); aqui é só o que ainda não venceu.
+    prisma.expense.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+        status: { in: ['pending', 'partial'] },
+        dueDate: { gte: now, lte: sevenDaysFromNow },
+      },
+      orderBy: { dueDate: 'asc' },
+      select: { id: true, description: true, value: true, dueDate: true },
     }),
   ]);
 
@@ -96,6 +117,13 @@ async function gatherContext(userId, monthId) {
     goals,
     newDebtThisMonth: Number(debtsCreatedThisMonthAgg._sum.totalValue ?? 0),
     paidTowardDebtThisMonth: Number(paidTowardDebtThisMonthAgg._sum.paidAmount ?? 0),
+    upcomingBills: upcomingBills.map((e) => ({
+      id: e.id,
+      description: e.description,
+      value: Number(e.value),
+      dueDate: e.dueDate,
+      daysUntilDue: Math.ceil((e.dueDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)),
+    })),
   };
 }
 
@@ -193,6 +221,24 @@ function evaluateRules(ctx) {
       type: 'late_bills',
       severity: ctx.lateCount >= 3 ? 'critical' : 'warning',
       message: `Você tem ${ctx.lateCount} conta(s) atrasada(s).`,
+    });
+  }
+
+  // Contas a vencer nos próximos 7 dias (ainda não atrasadas). Severidade
+  // escala com a urgência: se a mais próxima vence em até 2 dias, é
+  // 'critical' (mesmo padrão de "cartão perto do limite" acima); senão
+  // 'warning'. Cita a conta mais próxima pelo nome para ser acionável,
+  // igual o alerta de cartão cita o cartão pelo nome.
+  if (ctx.upcomingBills.length > 0) {
+    const nearest = ctx.upcomingBills[0];
+    const total = ctx.upcomingBills.reduce((sum, b) => sum + b.value, 0);
+    const urgent = nearest.daysUntilDue <= 2;
+    const dueLabel = nearest.daysUntilDue <= 0 ? 'hoje' : nearest.daysUntilDue === 1 ? 'amanhã' : `em ${nearest.daysUntilDue} dias`;
+    const extra = ctx.upcomingBills.length > 1 ? ` (+${ctx.upcomingBills.length - 1} outra(s), total R$ ${total.toFixed(2)})` : '';
+    alerts.push({
+      type: 'upcoming_bills',
+      severity: urgent ? 'critical' : 'warning',
+      message: `"${nearest.description}" vence ${dueLabel} (R$ ${nearest.value.toFixed(2)})${extra}.`,
     });
   }
 

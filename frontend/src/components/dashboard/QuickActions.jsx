@@ -14,7 +14,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goals = [], monthStatus }) {
   const selectedMonthId = useMonthStore((s) => s.selectedMonthId);
-  const initialize      = useMonthStore((s) => s.initialize);
+  const refreshMonths   = useMonthStore((s) => s.refreshMonths);
+  const selectMonth     = useMonthStore((s) => s.selectMonth);
   const navigate        = useNavigate();
   const toast           = useUIStore((s) => s);
 
@@ -159,11 +160,20 @@ export function QuickActions({ onRefresh, pendingExpenses = [], cards = [], goal
   async function closeMonth() {
     setClosing(true);
     try {
-      await api.post(`/months/${selectedMonthId}/close`);
+      const { data } = await api.post(`/months/${selectedMonthId}/close`);
       toast.success('Mês encerrado com sucesso!');
       setModal(null);
-      await initialize();
-      onRefresh();
+      // Atualiza a lista de meses (agora inclui o mês recém-criado) e
+      // seleciona esse mês diretamente — ver o comentário de
+      // `refreshMonths()` em monthStore.js para o porquê de não usar mais
+      // `initialize()` aqui. Não chamamos `onRefresh()` depois: ele está
+      // vinculado ao `selectedMonthId` de QUANDO ESTE COMPONENTE FOI
+      // RENDERIZADO (o mês que acabou de fechar), então chamá-lo aqui
+      // buscaria os dados do mês ERRADO por uma fração de segundo — a
+      // troca de `selectedMonthId` abaixo já dispara sozinha o recarregamento
+      // do dashboard para o mês novo, reativamente.
+      await refreshMonths();
+      if (data?.nextMonth?.id) selectMonth(data.nextMonth.id);
     } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao encerrar mês.')); }
     finally { setClosing(false); }
   }

@@ -20,8 +20,14 @@ Resposta curta: não inteiramente. Encontrei um bug real e relativamente sério 
 | 5 | `round2` reimplementado do zero em 12 arquivos diferentes; tratamento de erro do frontend duplicado em ~40 lugares | Backend e frontend inteiros | Manutenibilidade | ✅ Centralizado |
 | 6 | Três definições diferentes de "comprometimento de renda" convivem no app (dashboard, saúde financeira, simulador de compras), cada uma com uma fórmula distinta | Cross-cutting | Média (produto) | 📋 Recomendação (não alterado — ver §7) |
 | 7 | "Reduzir categoria" e "Cancelar assinatura" no "E Se" são, hoje, o mesmo cálculo — o primeiro nem recebe qual categoria | `whatIfSimulator.service.js` | Baixa (produto) | 📋 Recomendação (não alterado — ver §7) |
+| 8 | Componente React definido dentro de outro componente fazia campos de texto perderem o foco a cada tecla digitada (aba "E Se" e mais 3 lugares) | Frontend, 4 arquivos | **Alta** (usabilidade) | ✅ Corrigido |
+| 9 | Sino de notificações 100% decorativo (sem `onClick`); faltava alerta para conta perto de vencer (só existia para já atrasada) | Frontend (Topbar) + backend (alerts) | Alta (funcionalidade ausente) | ✅ Corrigido + testado |
+| 10 | Barra de busca 100% decorativa (comentário no código já dizia "visual apenas") | Frontend (Topbar) | Alta (funcionalidade ausente) | ✅ Corrigido + testado (endpoint novo) |
+| 11 | Fechar o mês não selecionava o mês novo automaticamente (janela de estado incorreto + resposta de dashboard fora de ordem) | Frontend (fechamento de mês) | Média | ✅ Corrigido |
 
-Toda a suíte de testes do backend passa: **105 testes em 16 arquivos** (eram 86 em 14 antes desta revisão — acrescentei 2 arquivos novos de teste e ampliei um terceiro). O frontend builda limpo (`npm run build`) depois de todas as mudanças.
+A seção §10 detalha os achados 8–11 (segunda rodada, depois da entrega inicial).
+
+Toda a suíte de testes do backend passa: **116 testes em 18 arquivos** (eram 86 em 14 antes de qualquer alteração — acrescentei 4 arquivos novos de teste e ampliei um quinto, ao longo das duas rodadas). O frontend builda limpo (`npm run build`) depois de todas as mudanças.
 
 ---
 
@@ -233,13 +239,59 @@ Prioridade decrescente. Nenhuma delas é um bug no sentido de "dá resultado err
 
 ---
 
-## 9. Como validar
+## 10. Segunda rodada: notificações, busca, foco ao digitar e fechamento de mês
+
+Depois da entrega inicial, você relatou mais quatro problemas de uso real. Aqui está o que cada um era e o que mudou.
+
+### 10.1 Bug de perda de foco ao digitar
+**Causa raiz (a mesma nas 4 ocorrências):** um componente React definido **dentro** de outro componente (`function InputFields() {...}` dentro de `WhatIfSimulatorPage`, por exemplo), usado como `<InputFields />`. O React identifica um componente pela referência da função, não pelo nome — como a função pai recria essa função a cada render, e digitar em QUALQUER campo dispara um render (via `setState`), o React interpretava isso como "um componente diferente" a cada tecla e desmontava/remontava o campo, jogando o foco fora dele.
+
+Encontrei 4 ocorrências (busquei por esse padrão em todo o frontend); só a primeira tinha campo de texto — as outras têm o mesmo problema de fundo, com sintoma mais brando (o elemento inteiro remonta à toa a cada render, mas sem input para perder foco):
+
+| Arquivo | Componente | Sintoma visível |
+|---|---|---|
+| `WhatIfSimulatorPage.jsx` | `InputFields` | **Perda de foco ao digitar** (o problema que você viu) |
+| `GoalsPage.jsx` | `GoalCard` | Card de meta remontava à toa a cada ação na página |
+| `ExpensesPage.jsx` | `AddButton` | Botão remontava à toa (sem sintoma visível, mas mesmo problema) |
+| `SavingsPage.jsx` | `CustomTooltip` | Tooltip do gráfico remontava à toa |
+
+**Correção:** os 4 foram movidos para fora do componente pai (nível do módulo), recebendo o que precisam via props em vez de fechar sobre o estado do componente pai — é assim que `CustomTooltip` já estava feito corretamente em `WhatIfSimulatorPage.jsx`, usei o mesmo padrão nos outros três.
+
+### 10.2 Sino de notificações
+Era 100% decorativo — o botão não tinha `onClick`, e o ponto vermelho era fixo no HTML (sempre aparecia, independente de existir alerta ou não). Ao investigar, também achei que a regra de alerta "conta perto de vencer" **não existia** — só havia alerta para conta **já atrasada**.
+
+**O que mudou:**
+- **Backend:** nova regra em `alerts.service.js` — conta com vencimento nos próximos 7 dias gera alerta (crítico se for em até 2 dias, atenção caso contrário), citando a conta pelo nome. Tem teste cobrindo os casos (nenhuma conta, uma, várias, e a distinção com "já atrasada").
+- **Frontend:** o sino agora busca os alertas de verdade (reaproveita o mesmo endpoint que a Central de Alertas usa), mostra o ponto vermelho só quando há alerta ativo, e abre um dropdown ao clicar com a lista de alertas + link para a Central de Alertas. Atualiza ao trocar de mês e a cada 60s (alertas de prazo mudam só com o tempo passando, sem o usuário fazer nada).
+
+### 10.3 Barra de busca
+Também era decorativa (comentário no próprio código dizia "visual apenas"). Implementei uma busca de verdade:
+- **Backend:** endpoint novo (`GET /search?q=`), módulo `search` — procura por texto (case-insensitive) em despesas, receitas, dívidas, cartões e metas, sempre restrito ao usuário logado, até 5 resultados por tipo. Testado.
+- **Frontend:** a barra do Topbar busca com debounce de 300ms enquanto você digita, mostra um dropdown com os resultados agrupados por tipo (ícone + nome + valor/mês), e clicar num resultado já leva para a página certa — inclusive selecionando o mês certo, se o resultado for de um mês diferente do que está aberto agora. Para despesas/dívidas, já abre na aba certa (fixa/variável/dívidas) — adicionei suporte a `?tab=` na URL de Despesas para isso funcionar.
+
+### 10.4 Fechar o mês não ia para o próximo automaticamente
+O código já tinha uma tentativa de correção anterior para isso (um comentário no arquivo já descrevia esse exato sintoma) — mas a implementação tinha uma falha sutil: depois de fechar o mês, chamava `initialize()` (que busca "o mês de hoje" pela **data real do calendário**, sempre, mesmo que você tenha acabado de fechar um mês diferente) e só DEPOIS corrigia manualmente para o mês certo. Funcionava na maioria das vezes, mas deixava uma janela onde o estado global apontava para o mês errado — e ainda chamava, por engano, uma atualização do dashboard vinculada ao mês ANTIGO (o que acabou de fechar), que podia sobrescrever a tela com o mês errado se essa resposta demorasse mais que a do mês novo.
+
+**Correção:** criei `refreshMonths()` — atualiza só a lista de meses (agora com o mês novo) sem tocar no mês selecionado — e o fechamento passou a selecionar o mês novo diretamente, sem passar por um valor errado no meio do caminho. Também protegi o carregamento de dados do Dashboard contra respostas que chegam fora de ordem (se a busca do mês antigo demorar mais que a do mês novo, ela agora é ignorada em vez de sobrescrever a tela).
+
+### 10.5 Testes e validação desta rodada
+- **Backend:** 2 arquivos de teste novos (`alerts.service.test.js` — 5 testes, `search.service.test.js` — 6 testes). Suíte total: **116 testes em 18 arquivos**, todos passando.
+- **Frontend:** ainda não tem suíte de testes automatizados (isso já valia antes desta rodada — é uma lacuna conhecida, não algo que apareceu agora). Validei manualmente lendo o código e rodando `npm run build` depois de cada mudança para garantir que tudo compila sem erro.
+
+### 10.6 Arquivos alterados nesta rodada
+**Backend:** `modules/alerts/alerts.service.js` (nova regra), `modules/search/` (módulo novo: `search.service.js`, `search.routes.js`), `routes/index.js` (registro da rota), `tests/helpers/prismaMock.js` (mocks novos: `alert`, `income.findMany`), `tests/services/alerts.service.test.js` (novo), `tests/services/search.service.test.js` (novo).
+
+**Frontend:** `store/monthStore.js` (`refreshMonths`), `components/dashboard/QuickActions.jsx` (fechamento de mês), `pages/DashboardPage.jsx` (proteção contra resposta fora de ordem), `components/layout/Topbar.jsx` (busca + notificações, reescrito), `lib/services/index.js` (`searchApi`), `pages/WhatIfSimulatorPage.jsx`, `pages/GoalsPage.jsx`, `pages/ExpensesPage.jsx` (+ suporte a `?tab=`), `pages/SavingsPage.jsx` (os 4 ajustes de componente aninhado).
+
+---
+
+## 11. Como validar
 
 ```bash
 # Backend
 cd backend
 npm install
-npx jest              # 105 testes, 16 suítes
+npx jest              # 116 testes, 18 suítes
 
 # Frontend
 cd frontend
@@ -247,4 +299,7 @@ npm install
 npm run build          # build de produção limpo
 ```
 
-Os testes novos em `whatIfSimulator.service.test.js` e `purchaseSimulator.service.test.js` têm comentário explicando o cenário numérico e por que o número esperado é aquele — servem também como documentação viva de como cada conta deveria se comportar.
+Os testes em `whatIfSimulator.service.test.js`, `purchaseSimulator.service.test.js`, `projections.service.test.js`, `alerts.service.test.js` e `search.service.test.js` têm comentário explicando o cenário numérico e por que o resultado esperado é aquele — servem também como documentação viva de como cada conta deveria se comportar.
+
+O frontend ainda não tem suíte de testes automatizados — validação nesta rodada foi manual (leitura de código) + `npm run build` limpo após cada mudança. Se quiser, posso montar uma suíte básica (Vitest + Testing Library) numa próxima sessão — é a lacuna mais importante que resta no projeto como um todo.
+

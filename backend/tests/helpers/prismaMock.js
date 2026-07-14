@@ -32,7 +32,7 @@ function createPrismaMock() {
     cardInvoice: modelMock(['findUnique', 'findFirst', 'findMany', 'create', 'update', 'count', 'deleteMany']),
     cardPurchase: modelMock(['create', 'findMany', 'groupBy', 'deleteMany']),
     expense: modelMock(['findMany', 'findFirst', 'aggregate', 'groupBy', 'count', 'update', 'updateMany', 'create', 'deleteMany']),
-    income: modelMock(['aggregate', 'groupBy', 'create', 'findFirst']),
+    income: modelMock(['aggregate', 'groupBy', 'create', 'findFirst', 'findMany']),
     incomeTemplate: modelMock(['count', 'findMany', 'aggregate']),
     fixedExpenseTemplate: modelMock(['count', 'findMany', 'aggregate']),
     debt: modelMock(['findMany', 'findFirst', 'aggregate', 'create', 'update', 'count']),
@@ -40,6 +40,7 @@ function createPrismaMock() {
     goal: modelMock(['findMany', 'create', 'findFirst', 'update', 'count']),
     goalContribution: modelMock(['create', 'findMany']),
     simulation: modelMock(['findFirst', 'delete']),
+    alert: modelMock(['findMany', 'update', 'upsert']),
     month: modelMock(['findFirst', 'findUnique', 'findMany', 'update']),
     refreshToken: modelMock(['findUnique', 'create', 'update', 'updateMany']),
     passwordReset: modelMock(['findFirst', 'findUnique', 'create', 'update']),
@@ -92,6 +93,9 @@ function installDefaults(mock) {
   mock.cardInvoice.findMany.mockResolvedValue([]);
   mock.cardPurchase.groupBy.mockResolvedValue([]);
   mock.cardPurchase.findMany.mockResolvedValue([]);
+  mock.alert.findMany.mockResolvedValue([]);
+  mock.alert.update.mockResolvedValue({});
+  mock.alert.upsert.mockResolvedValue({});
 }
 
 module.exports = { createPrismaMock, installDefaults };

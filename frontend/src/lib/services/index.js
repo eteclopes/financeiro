@@ -134,3 +134,8 @@ export const alertsApi = {
 export const behavioralAnalysisApi = {
   get: (monthId, periods = 6) => api.get('/behavioral-analysis', { params: { monthId, periods } }),
 };
+
+// ---- Busca global (Topbar) ----
+export const searchApi = {
+  run: (q) => api.get('/search', { params: { q } }),
+};

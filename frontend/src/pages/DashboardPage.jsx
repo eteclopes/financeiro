@@ -49,21 +49,29 @@ export default function DashboardPage() {
 
   const load = useCallback(async () => {
     if (!selectedMonthId) return;
+    // Guarda qual mês esta chamada está buscando. Se `selectedMonthId`
+    // mudar de novo (ex.: ao fechar o mês, que troca o mês selecionado
+    // logo em seguida) antes desta resposta voltar, e ela chegar DEPOIS de
+    // uma busca mais nova, isso evita que os dados do mês antigo
+    // sobrescrevam os dados do mês certo já mostrados na tela.
+    const requestedMonthId = selectedMonthId;
     setLoading(true);
     setError(null);
     try {
       const [dash, p] = await Promise.all([
-        dashboardApi.get(selectedMonthId),
-        projectionsApi.get(selectedMonthId, 6).catch(() => ({ data: { projection: [] } })),
+        dashboardApi.get(requestedMonthId),
+        projectionsApi.get(requestedMonthId, 6).catch(() => ({ data: { projection: [] } })),
       ]);
+      if (useMonthStore.getState().selectedMonthId !== requestedMonthId) return;
       setData(dash.data);
       setProj(p.data.projection ?? []);
     } catch (e) {
+      if (useMonthStore.getState().selectedMonthId !== requestedMonthId) return;
       const msg = extractErrorMessage(e, 'Não foi possível carregar o dashboard.');
       setError(msg);
       errorToast(msg);
     } finally {
-      setLoading(false);
+      if (useMonthStore.getState().selectedMonthId === requestedMonthId) setLoading(false);
     }
   }, [selectedMonthId]);
 

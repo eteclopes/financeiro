@@ -8,6 +8,82 @@ import { Modal, FormGroup, Input } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
 import { useThemeStore } from '../store/themeStore';
 
+const SCORE_COLOR = (pct) => pct >= 75 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#3B82F6';
+
+// Definido no nível do módulo (não dentro de GoalsPage) pelo mesmo motivo
+// explicado em WhatIfSimulatorPage.jsx: uma função-componente recriada a
+// cada render do pai perde a identidade estável que o React usa para
+// decidir "atualizar" em vez de "desmontar e remontar". Aqui não há campo
+// de texto dentro do card (então o sintoma não é perda de foco), mas o
+// card inteiro remontava a cada render de GoalsPage — perdendo, por
+// exemplo, qualquer transição/animação em andamento.
+function GoalCard({ goal, theme, onContribute, onEdit, onCancel }) {
+  const pct = Math.min(Math.round(goal.percentage), 100);
+  return (
+    <Card className="animate-fade-in">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1 min-w-0 mr-3">
+          <p className="font-bold text-slate-900 dark:text-zinc-50 text-base">{goal.name}</p>
+          {goal.description && <p className="text-xs text-muted mt-0.5">{goal.description}</p>}
+        </div>
+        <Badge variant={goal.status==='active'?'info':goal.status==='completed'?'success':'default'}>
+          {goal.status==='active'?'Ativa':goal.status==='completed'?'Concluída':'Cancelada'}
+        </Badge>
+      </div>
+
+      {/* Progress ring + bar */}
+      <div className="flex items-center gap-4 mb-4">
+        <div className="relative h-16 w-16 shrink-0">
+          <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke={theme === 'dark' ? '#27272A' : '#F1F5F9'} strokeWidth="3" />
+            <circle cx="18" cy="18" r="15.9" fill="none" stroke={SCORE_COLOR(pct)} strokeWidth="3"
+              strokeDasharray={`${pct} ${100-pct}`} strokeLinecap="round"
+              style={{ transition: 'stroke-dasharray 0.6s ease' }} />
+          </svg>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-sm font-bold" style={{ color: SCORE_COLOR(pct) }}>{pct}%</span>
+          </div>
+        </div>
+        <div className="flex-1">
+          <div className="flex justify-between text-xs text-muted mb-1">
+            <span>Acumulado</span><span>Meta</span>
+          </div>
+          <ProgressBar value={goal.progress} max={Number(goal.targetValue)} height="h-3"
+            color={pct >= 75 ? 'primary' : pct >= 40 ? 'warning' : 'info'} />
+          <div className="flex justify-between mt-1">
+            <span className="text-sm font-bold text-primary-dark dark:text-primary-light">{formatCurrency(goal.progress)}</span>
+            <span className="text-sm font-bold text-slate-700 dark:text-zinc-300">{formatCurrency(goal.targetValue)}</span>
+          </div>
+        </div>
+      </div>
+
+      {goal.remaining > 0 && goal.status === 'active' && (
+        <div className="bg-subtle dark:bg-white/[0.04] rounded-xl p-3 mb-4 text-xs">
+          <span className="text-muted">Faltam </span>
+          <span className="font-bold text-slate-800 dark:text-zinc-200">{formatCurrency(goal.remaining)}</span>
+          {goal.estimatedMonthsAtCurrentPace && (
+            <span className="text-muted"> · ao ritmo atual: ~<span className="font-semibold text-slate-700 dark:text-zinc-300">{goal.estimatedMonthsAtCurrentPace} meses</span></span>
+          )}
+        </div>
+      )}
+
+      {goal.status === 'active' && (
+        <div className="flex gap-2">
+          <Button size="sm" onClick={() => onContribute(goal)} className="flex-1 justify-center">
+            + Aportar
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => onEdit(goal)}>
+            Editar
+          </Button>
+          <Button size="sm" variant="ghost" className="text-danger" onClick={() => onCancel(goal)}>
+            Cancelar
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function GoalsPage() {
   const selectedMonthId = useMonthStore((s) => s.selectedMonthId);
   const [goals, setGoals]     = useState([]);
@@ -90,75 +166,16 @@ export default function GoalsPage() {
   const active    = goals.filter((g) => g.status === 'active');
   const completed = goals.filter((g) => g.status === 'completed');
   const cancelled = goals.filter((g) => g.status === 'cancelled');
+  const theme = useThemeStore((s) => s.theme);
 
-  const SCORE_COLOR = (pct) => pct >= 75 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#3B82F6';
+  function openContribute(goal) {
+    setContribTarget(goal);
+    setContribForm({ value: '', date: new Date().toISOString().slice(0, 10) });
+  }
 
-  function GoalCard({ goal }) {
-    const pct = Math.min(Math.round(goal.percentage), 100);
-    const theme = useThemeStore((s) => s.theme);
-    return (
-      <Card className="animate-fade-in">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1 min-w-0 mr-3">
-            <p className="font-bold text-slate-900 dark:text-zinc-50 text-base">{goal.name}</p>
-            {goal.description && <p className="text-xs text-muted mt-0.5">{goal.description}</p>}
-          </div>
-          <Badge variant={goal.status==='active'?'info':goal.status==='completed'?'success':'default'}>
-            {goal.status==='active'?'Ativa':goal.status==='completed'?'Concluída':'Cancelada'}
-          </Badge>
-        </div>
-
-        {/* Progress ring + bar */}
-        <div className="flex items-center gap-4 mb-4">
-          <div className="relative h-16 w-16 shrink-0">
-            <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke={theme === 'dark' ? '#27272A' : '#F1F5F9'} strokeWidth="3" />
-              <circle cx="18" cy="18" r="15.9" fill="none" stroke={SCORE_COLOR(pct)} strokeWidth="3"
-                strokeDasharray={`${pct} ${100-pct}`} strokeLinecap="round"
-                style={{ transition: 'stroke-dasharray 0.6s ease' }} />
-            </svg>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-sm font-bold" style={{ color: SCORE_COLOR(pct) }}>{pct}%</span>
-            </div>
-          </div>
-          <div className="flex-1">
-            <div className="flex justify-between text-xs text-muted mb-1">
-              <span>Acumulado</span><span>Meta</span>
-            </div>
-            <ProgressBar value={goal.progress} max={Number(goal.targetValue)} height="h-3"
-              color={pct >= 75 ? 'primary' : pct >= 40 ? 'warning' : 'info'} />
-            <div className="flex justify-between mt-1">
-              <span className="text-sm font-bold text-primary-dark dark:text-primary-light">{formatCurrency(goal.progress)}</span>
-              <span className="text-sm font-bold text-slate-700 dark:text-zinc-300">{formatCurrency(goal.targetValue)}</span>
-            </div>
-          </div>
-        </div>
-
-        {goal.remaining > 0 && goal.status === 'active' && (
-          <div className="bg-subtle dark:bg-white/[0.04] rounded-xl p-3 mb-4 text-xs">
-            <span className="text-muted">Faltam </span>
-            <span className="font-bold text-slate-800 dark:text-zinc-200">{formatCurrency(goal.remaining)}</span>
-            {goal.estimatedMonthsAtCurrentPace && (
-              <span className="text-muted"> · ao ritmo atual: ~<span className="font-semibold text-slate-700 dark:text-zinc-300">{goal.estimatedMonthsAtCurrentPace} meses</span></span>
-            )}
-          </div>
-        )}
-
-        {goal.status === 'active' && (
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => { setContribTarget(goal); setContribForm({ value:'', date: new Date().toISOString().slice(0,10) }); }} className="flex-1 justify-center">
-              + Aportar
-            </Button>
-            <Button size="sm" variant="ghost" onClick={() => openEditGoal(goal)}>
-              Editar
-            </Button>
-            <Button size="sm" variant="ghost" className="text-danger" onClick={() => { setCancelTarget(goal); setRefundContributions(false); }}>
-              Cancelar
-            </Button>
-          </div>
-        )}
-      </Card>
-    );
+  function openCancel(goal) {
+    setCancelTarget(goal);
+    setRefundContributions(false);
   }
 
   return (
@@ -183,19 +200,25 @@ export default function GoalsPage() {
           {active.length > 0 && (
             <div>
               <p className="text-sm font-semibold text-slate-600 dark:text-zinc-400 mb-3">Ativas ({active.length})</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{active.map((g) => <GoalCard key={g.id} goal={g} />)}</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{active.map((g) => (
+                <GoalCard key={g.id} goal={g} theme={theme} onContribute={openContribute} onEdit={openEditGoal} onCancel={openCancel} />
+              ))}</div>
             </div>
           )}
           {completed.length > 0 && (
             <div>
               <p className="text-sm font-semibold text-slate-600 dark:text-zinc-400 mb-3">Concluídas ({completed.length})</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{completed.map((g) => <GoalCard key={g.id} goal={g} />)}</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{completed.map((g) => (
+                <GoalCard key={g.id} goal={g} theme={theme} onContribute={openContribute} onEdit={openEditGoal} onCancel={openCancel} />
+              ))}</div>
             </div>
           )}
           {cancelled.length > 0 && (
             <div>
               <p className="text-sm font-semibold text-muted mb-3">Canceladas ({cancelled.length})</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{cancelled.map((g) => <GoalCard key={g.id} goal={g} />)}</div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{cancelled.map((g) => (
+                <GoalCard key={g.id} goal={g} theme={theme} onContribute={openContribute} onEdit={openEditGoal} onCancel={openCancel} />
+              ))}</div>
             </div>
           )}
         </div>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMonthStore } from '../store/monthStore';
 import { expensesApi, debtsApi, categoriesApi } from '../lib/services';
 import { extractErrorMessage } from '../lib/api';
@@ -14,7 +15,16 @@ const STATUS_L  = { pending:'Pendente', partial:'Parcial', paid:'Pago', late:'At
 
 export default function ExpensesPage() {
   const selectedMonthId = useMonthStore((s) => s.selectedMonthId);
-  const [tab, setTab]       = useState('priority');
+  // Lê a aba inicial de `?tab=` na URL, se presente (ex.: vindo de um
+  // resultado da busca global do Topbar) — senão mantém o padrão de
+  // sempre, 'priority'. `useState` com função só lê isso UMA vez, na
+  // primeira renderização; a troca de aba pelo usuário depois disso
+  // funciona exatamente como antes (não fica "preso" sincronizando com a URL).
+  const [searchParams] = useSearchParams();
+  const [tab, setTab]       = useState(() => {
+    const fromUrl = searchParams.get('tab');
+    return ['priority', 'fixed', 'variable'].includes(fromUrl) ? fromUrl : 'priority';
+  });
   const [expenses, setExpenses] = useState([]);
   const [debts, setDebts]   = useState([]);
   const [categories, setCategories] = useState([]);
@@ -212,7 +222,15 @@ export default function ExpensesPage() {
   }
 
   // ── Render ────────────────────────────────────────────────
-  const AddButton = () => (
+  // Antes era `const AddButton = () => (...)`, usado como `<AddButton />`.
+  // Mesmo sem campo de texto (é só um botão), uma função-componente
+  // recriada a cada render do pai perde a identidade estável que o React
+  // usa pra decidir "atualizar" em vez de "desmontar e remontar" — igual
+  // ao problema corrigido em WhatIfSimulatorPage.jsx. Aqui a correção é
+  // mais simples: como não precisa de props próprias, basta parar de
+  // tratar como um componente (JSX `<Tag />`) e guardar o elemento pronto
+  // numa variável comum, inserida com `{addButton}`.
+  const addButton = (
     <Button size="sm" onClick={() => {
       if (tab === 'variable') { setVarForm({ description:'', value:'', categoryId:'', date: today(), paymentMethod:'pix', paid:true }); setVarModal(true); }
       if (tab === 'fixed')    { setFixForm({ description:'', value:'', categoryId:'', dueDay:'10' }); setFixModal(true); }
@@ -226,7 +244,7 @@ export default function ExpensesPage() {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h2 className="font-bold text-xl text-slate-900 dark:text-zinc-50">Despesas</h2>
-        <AddButton />
+        {addButton}
       </div>
 
       <TabGroup tabs={tabs} value={tab} onChange={setTab} />
@@ -237,7 +255,7 @@ export default function ExpensesPage() {
         ) : filtered.length === 0 ? (
           <EmptyState icon="📋" title={`Nenhuma despesa ${tab === 'priority' ? 'de prioridade' : tab === 'fixed' ? 'fixa' : 'variável'}`}
             description="Adicione uma nova despesa clicando no botão acima."
-            action={<AddButton />} />
+            action={addButton} />
         ) : tab === 'priority' ? (
           /* ── Tabela Prioridade ── */
           <div className="overflow-x-auto">

@@ -35,6 +35,58 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
+// Antes, este bloco vivia DENTRO de WhatIfSimulatorPage como
+// `function InputFields() {...}`, usado como `<InputFields />`. Isso
+// parece inofensivo, mas o React identifica um componente pela referência
+// da função, não pelo nome — como `WhatIfSimulatorPage` recria essa função
+// a cada render (e digitar em QUALQUER campo dispara um render, via
+// `setInput`), o React via ali um componente "novo" a cada tecla e
+// desmontava/remontava o campo, jogando o foco fora dele no meio da
+// digitação. Um componente definido no nível do módulo, como este, tem
+// referência estável entre renders — o React só atualiza as props, nunca
+// desmonta o input.
+function ScenarioInputFields({ type, input, setInput, activeDebts }) {
+  if (type === 'pay_debt') return (
+    <FormGroup label="Dívida a quitar">
+      <Select value={input.debtId ?? ''} onChange={(e) => setInput({ debtId: e.target.value })}>
+        <option value="">Selecione...</option>
+        {activeDebts.map((d) => <option key={d.id} value={d.id}>{d.description} — {formatCurrency(d.remainingBalance)}</option>)}
+      </Select>
+    </FormGroup>
+  );
+  if (type === 'anticipate_installments') return (
+    <div className="grid grid-cols-2 gap-3">
+      <FormGroup label="Dívida">
+        <Select value={input.debtId ?? ''} onChange={(e) => setInput({...input, debtId: e.target.value})}>
+          <option value="">Selecione...</option>
+          {activeDebts.map((d) => <option key={d.id} value={d.id}>{d.description}</option>)}
+        </Select>
+      </FormGroup>
+      <FormGroup label="Valor a antecipar">
+        <Input type="number" min="0" step="0.01" value={input.amount ?? ''}
+          onChange={(e) => setInput({...input, amount: parseFloat(e.target.value)})} />
+      </FormGroup>
+    </div>
+  );
+  // reduce_category e cancel_subscription pedem o mesmo tipo de input
+  // (um valor mensal) porque, hoje, o backend aplica exatamente o mesmo
+  // cálculo para os dois — nenhum dos dois pergunta QUAL categoria, nem
+  // usa o histórico real de gastos dela (ver nota em
+  // whatIfSimulator.service.js). Funciona, mas é uma simplificação.
+  const amountLabels = {
+    save_monthly: 'Valor a guardar por mês',
+    reduce_category: 'Redução mensal nos gastos',
+    cancel_subscription: 'Valor da assinatura',
+    increase_income: 'Aumento mensal na receita',
+  };
+  return (
+    <FormGroup label={amountLabels[type] ?? 'Valor'}>
+      <Input type="number" min="0" step="0.01" value={input.amount ?? ''}
+        onChange={(e) => setInput({ amount: parseFloat(e.target.value) })} placeholder="R$ 0,00" />
+    </FormGroup>
+  );
+}
+
 export default function WhatIfSimulatorPage() {
   const selectedMonthId = useMonthStore((s) => s.selectedMonthId);
   const [debts, setDebts]   = useState([]);
@@ -90,48 +142,6 @@ export default function WhatIfSimulatorPage() {
 
   const activeDebts = debts.filter((d) => d.status === 'active');
 
-  function InputFields() {
-    if (type === 'pay_debt') return (
-      <FormGroup label="Dívida a quitar">
-        <Select value={input.debtId ?? ''} onChange={(e) => setInput({ debtId: e.target.value })}>
-          <option value="">Selecione...</option>
-          {activeDebts.map((d) => <option key={d.id} value={d.id}>{d.description} — {formatCurrency(d.remainingBalance)}</option>)}
-        </Select>
-      </FormGroup>
-    );
-    if (type === 'anticipate_installments') return (
-      <div className="grid grid-cols-2 gap-3">
-        <FormGroup label="Dívida">
-          <Select value={input.debtId ?? ''} onChange={(e) => setInput({...input, debtId: e.target.value})}>
-            <option value="">Selecione...</option>
-            {activeDebts.map((d) => <option key={d.id} value={d.id}>{d.description}</option>)}
-          </Select>
-        </FormGroup>
-        <FormGroup label="Valor a antecipar">
-          <Input type="number" min="0" step="0.01" value={input.amount ?? ''}
-            onChange={(e) => setInput({...input, amount: parseFloat(e.target.value)})} />
-        </FormGroup>
-      </div>
-    );
-    // reduce_category e cancel_subscription pedem o mesmo tipo de input
-    // (um valor mensal) porque, hoje, o backend aplica exatamente o mesmo
-    // cálculo para os dois — nenhum dos dois pergunta QUAL categoria, nem
-    // usa o histórico real de gastos dela (ver nota em
-    // whatIfSimulator.service.js). Funciona, mas é uma simplificação.
-    const amountLabels = {
-      save_monthly: 'Valor a guardar por mês',
-      reduce_category: 'Redução mensal nos gastos',
-      cancel_subscription: 'Valor da assinatura',
-      increase_income: 'Aumento mensal na receita',
-    };
-    return (
-      <FormGroup label={amountLabels[type] ?? 'Valor'}>
-        <Input type="number" min="0" step="0.01" value={input.amount ?? ''}
-          onChange={(e) => setInput({ amount: parseFloat(e.target.value) })} placeholder="R$ 0,00" />
-      </FormGroup>
-    );
-  }
-
   const chartData = result?.comparison.map((m) => ({
     name: `${String(m.month).padStart(2,'0')}/${String(m.year).slice(-2)}`,
     atual: m.baselineCumulative,
@@ -157,7 +167,7 @@ export default function WhatIfSimulatorPage() {
                 {SCENARIO_TYPES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
               </Select>
             </FormGroup>
-            <InputFields />
+            <ScenarioInputFields type={type} input={input} setInput={setInput} activeDebts={activeDebts} />
             <Button onClick={runPreview} loading={loading} className="w-full justify-center py-3">
               Simular cenário
             </Button>
