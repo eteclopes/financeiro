@@ -7,31 +7,21 @@ import {
   IconTrend, IconBudget, IconBell,
 } from '../icons';
 
-// Ícone simples para Assinaturas (reutiliza existente)
-const IconSubscription = ({ size = 18 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-    <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
-    <line x1="12" y1="22.08" x2="12" y2="12"/>
-  </svg>
-);
-
 const NAV = [
-  { to: '/',                   Icon: IconDashboard,     label: 'Dashboard',           group: 'main' },
-  { to: '/incomes',            Icon: IconIncome,        label: 'Receitas',            group: 'main' },
-  { to: '/expenses',           Icon: IconExpense,       label: 'Despesas',            group: 'main' },
-  { to: '/cards',              Icon: IconCard,          label: 'Cartões',             group: 'main' },
-  { to: '/subscriptions',      Icon: IconSubscription,  label: 'Assinaturas',         group: 'main' },
-  { to: '/savings',            Icon: IconWallet,        label: 'Reserva Financeira',  group: 'main' },
-  { to: '/goals',              Icon: IconGoal,          label: 'Metas',               group: 'main' },
-  { to: '/budgets',            Icon: IconBudget,        label: 'Orçamento',           group: 'main' },
-  { to: '/simulator/purchase', Icon: IconSimulator,     label: 'Simulador de Compras',group: 'tools' },
-  { to: '/simulator/what-if',  Icon: IconSimulator,     label: 'Simulador E Se?',     group: 'tools' },
-  { to: '/history',            Icon: IconHistory,       label: 'Histórico',           group: 'tools' },
-  { to: '/trends',             Icon: IconTrend,         label: 'Tendências',          group: 'tools' },
-  { to: '/insights',           Icon: IconBell,          label: 'Alertas e Dicas',     group: 'tools' },
-  { to: '/reports',            Icon: IconReport,        label: 'Relatórios',          group: 'tools' },
-  { to: '/settings',           Icon: IconSettings,      label: 'Configurações',       group: 'system' },
+  { to: '/',                   Icon: IconDashboard,  label: 'Dashboard',           group: 'main' },
+  { to: '/incomes',            Icon: IconIncome,     label: 'Receitas',            group: 'main' },
+  { to: '/expenses',           Icon: IconExpense,    label: 'Despesas',            group: 'main' },
+  { to: '/cards',              Icon: IconCard,       label: 'Cartões',             group: 'main' },
+  { to: '/savings',            Icon: IconWallet,     label: 'Reserva Financeira',  group: 'main' },
+  { to: '/goals',              Icon: IconGoal,       label: 'Metas',               group: 'main' },
+  { to: '/budgets',            Icon: IconBudget,     label: 'Orçamento',           group: 'main' },
+  { to: '/simulator/purchase', Icon: IconSimulator,  label: 'Simulador de Compras',group: 'tools' },
+  { to: '/simulator/what-if',  Icon: IconSimulator,  label: 'Simulador E Se?',     group: 'tools' },
+  { to: '/history',            Icon: IconHistory,    label: 'Histórico',           group: 'tools' },
+  { to: '/trends',             Icon: IconTrend,      label: 'Tendências',          group: 'tools' },
+  { to: '/insights',           Icon: IconBell,       label: 'Alertas e Dicas',     group: 'tools' },
+  { to: '/reports',            Icon: IconReport,     label: 'Relatórios',          group: 'tools' },
+  { to: '/settings',           Icon: IconSettings,   label: 'Configurações',       group: 'system' },
 ];
 
 const GROUPS = [

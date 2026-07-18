@@ -16,7 +16,7 @@ import ExpensesPage        from './pages/ExpensesPage';
 import CardsPage           from './pages/CardsPage';
 import SavingsPage         from './pages/SavingsPage';
 import GoalsPage           from './pages/GoalsPage';
-import SubscriptionsPage   from './pages/SubscriptionsPage';
+import SubscriptionsPage   from './pages/SubscriptionsPage'; // mantido para rota de fallback, assinaturas agora ficam dentro de Despesas
 import PurchaseSimulatorPage from './pages/PurchaseSimulatorPage';
 import WhatIfSimulatorPage from './pages/WhatIfSimulatorPage';
 import HistoryPage         from './pages/HistoryPage';
@@ -129,7 +129,7 @@ export default function App() {
           <Route path="/cards"              element={<ErrorBoundary><CardsPage /></ErrorBoundary>} />
           <Route path="/savings"            element={<ErrorBoundary><SavingsPage /></ErrorBoundary>} />
           <Route path="/goals"              element={<ErrorBoundary><GoalsPage /></ErrorBoundary>} />
-          <Route path="/subscriptions"      element={<ErrorBoundary><SubscriptionsPage /></ErrorBoundary>} />
+          <Route path="/subscriptions"      element={<Navigate to="/expenses" replace />} />
           <Route path="/simulator/purchase" element={<ErrorBoundary><PurchaseSimulatorPage /></ErrorBoundary>} />
           <Route path="/simulator/what-if"  element={<ErrorBoundary><WhatIfSimulatorPage /></ErrorBoundary>} />
           <Route path="/history"            element={<ErrorBoundary><HistoryPage /></ErrorBoundary>} />
