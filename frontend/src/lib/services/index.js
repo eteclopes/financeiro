@@ -139,3 +139,11 @@ export const behavioralAnalysisApi = {
 export const searchApi = {
   run: (q) => api.get('/search', { params: { q } }),
 };
+// ---- Subscriptions ----
+export const subscriptionsApi = {
+  list: () => api.get('/subscriptions'),
+  create: (data) => api.post('/subscriptions', data),
+  update: (id, data) => api.patch(`/subscriptions/${id}`, data),
+  pause: (id) => api.patch(`/subscriptions/${id}/pause`),
+  cancel: (id) => api.post(`/subscriptions/${id}/cancel`),
+};

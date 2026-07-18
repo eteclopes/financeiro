@@ -7,11 +7,8 @@ const { round2 } = require('../../utils/math');
 
 /**
  * O valor de cada parcela nunca é "total / parcelas" fixo e cego — é sempre
- * recalculado em cima do saldo devedor real. Isso é o que faz pagamento
- * flexível e quitação antecipada funcionarem sem nenhuma tabela extra de
- * "parcelas futuras": a última parcela (installmentsRemaining <= 1) sempre
- * absorve o saldo devedor inteiro, eliminando resíduo de arredondamento e
- * incorporando automaticamente qualquer diferença para mais ou para menos.
+ * recalculado em cima do saldo devedor real. A última parcela absorve o
+ * saldo inteiro, eliminando resíduo de arredondamento.
  */
 function computeInstallmentValue(remainingBalance, installmentsRemaining, nominalValue) {
   const balance = Number(remainingBalance);
@@ -66,7 +63,6 @@ async function createDebt(userId, payload) {
 
     return { debt, expense };
   }).then(async (result) => {
-    // Depois do commit — nunca dentro da transação (ver auditLog.service.js).
     await recordAuditLog(userId, 'debt', result.debt.id, 'create', { newValue: result.debt });
     return result;
   });
@@ -99,14 +95,6 @@ async function getDebtOrThrow(userId, debtId) {
   return debt;
 }
 
-/**
- * Edita apenas metadados da dívida (descrição, categoria, dia de
- * vencimento, flag de pagamento flexível) — nunca o valor total ou número
- * de parcelas, porque mudar isso depois de já existirem parcelas geradas
- * exigiria reabrir o cálculo de installmentValue/remainingBalance e
- * potencialmente reescrever parcelas de meses já fechados (proibido).
- * Quem precisar mudar valor/parcelas deve quitar e recriar a dívida.
- */
 async function updateDebt(userId, debtId, payload) {
   const debt = await getDebtOrThrow(userId, debtId);
 
@@ -126,11 +114,6 @@ async function updateDebt(userId, debtId, payload) {
       include: { category: true },
     });
 
-    // Reflete descrição/categoria/vencimento na(s) parcela(s) ainda em
-    // aberto em meses abertos — a parcela é uma "foto" da dívida no
-    // momento em que foi gerada, então mantê-la sincronizada com os
-    // metadados atuais da dívida evita que a tela mostre categoria/dia
-    // de vencimento antigos depois de uma edição.
     if (payload.description || payload.categoryId || payload.dueDay !== undefined) {
       const openInstallments = await tx.expense.findMany({
         where: { debtId, status: { in: ['pending', 'partial', 'late'] }, month: { status: 'open' } },
@@ -162,13 +145,6 @@ async function updateDebt(userId, debtId, payload) {
   });
 }
 
-/**
- * Encerra a dívida (status -> settled, parando geração de parcelas
- * futuras no próximo fechamento) e remove na hora a parcela do mês atual
- * se ela ainda não foi paga — espelha exatamente o que já é feito para
- * despesa fixa. Parcelas já pagas em qualquer mês (incluindo o atual)
- * nunca são tocadas: são histórico financeiro de algo que já aconteceu.
- */
 async function deleteDebt(userId, debtId) {
   const debt = await getDebtOrThrow(userId, debtId);
 
@@ -189,8 +165,10 @@ async function deleteDebt(userId, debtId) {
 }
 
 /**
- * Núcleo da Etapa 10 (pagamento flexível) e da regra de excedente.
- * Chamado por expenses.service.payExpense quando expense.type === 'priority'.
+ * ITEM 3 + ITEM 4: Pagamento flexível de dívida com:
+ * - Bloqueio de saldo insuficiente
+ * - Ajuste automático da próxima parcela ao pagar a mais ou a menos
+ * - Quitação automática quando saldo devedor zerado
  */
 async function applyPaymentToInstallment(userId, expense, amount, paymentMethod) {
   const debt = await getDebtOrThrow(userId, expense.debtId);
@@ -206,7 +184,12 @@ async function applyPaymentToInstallment(userId, expense, amount, paymentMethod)
     );
   }
 
-  const newRemainingBalanceRaw = Number(debt.remainingBalance) - amount;
+  // ITEM 3: Verifica saldo disponível (exceto pagamento via crédito)
+  if (paymentMethod !== 'credit') {
+    await expensesService.assertSufficientBalance(userId, expense.monthId, amount);
+  }
+
+  const newRemainingBalanceRaw = round2(Number(debt.remainingBalance) - amount);
   const newRemainingBalance = round2(Math.max(newRemainingBalanceRaw, 0));
   const isSettled = newRemainingBalance <= 0.009;
 
@@ -231,17 +214,58 @@ async function applyPaymentToInstallment(userId, expense, amount, paymentMethod)
       },
     });
 
+    // ITEM 4: Ajuste automático da próxima parcela
+    // Se quitada, remove parcelas futuras desnecessárias
+    if (isSettled) {
+      await tx.expense.deleteMany({
+        where: {
+          debtId: debt.id,
+          status: { in: ['pending', 'partial', 'late'] },
+          id: { not: expense.id },
+          month: { status: 'open' },
+        },
+      });
+    } else {
+      // Recalcula o valor da próxima parcela em aberto no mês atual ou futuro
+      const excess = round2(amount - installmentValue); // pode ser negativo (pagou a menos)
+      if (Math.abs(excess) > 0.009) {
+        // Há excesso positivo (pagou mais) ou déficit negativo (pagou menos)
+        // A próxima parcela precisa ter seu valor ajustado
+        const nextInstallments = await tx.expense.findMany({
+          where: {
+            debtId: debt.id,
+            status: { in: ['pending', 'partial', 'late'] },
+            id: { not: expense.id },
+          },
+          orderBy: { dueDate: 'asc' },
+          take: 1,
+        });
+
+        if (nextInstallments.length > 0) {
+          const nextInstallment = nextInstallments[0];
+          // Nova próxima parcela = saldo devedor restante
+          // (para últimas parcelas) ou valor nominal ajustado
+          const installmentsGenerated = await tx.expense.count({ where: { debtId: debt.id } });
+          const installmentsRemaining = Math.max(debt.installmentsCount - installmentsGenerated, 0);
+
+          const newNextValue = computeInstallmentValue(
+            newRemainingBalance,
+            Math.max(installmentsRemaining, 1),
+            Number(debt.installmentValue)
+          );
+
+          await tx.expense.update({
+            where: { id: nextInstallment.id },
+            data: { value: newNextValue },
+          });
+        }
+      }
+    }
+
     return { expense: updatedExpense, debt: updatedDebt };
   });
 }
 
-/**
- * Usado pela Etapa 15 (Fechamento Mensal, ainda não implementada) para
- * gerar a parcela do próximo mês de uma dívida ativa. Já implementado e
- * testável agora para travar a regra de negócio enquanto está fresca,
- * mesmo sem rota própria — fechamento mensal vai importar esta função
- * diretamente em vez de duplicar a lógica.
- */
 async function generateNextInstallment(debt, month, client = prisma) {
   if (debt.status === 'settled') return null;
 

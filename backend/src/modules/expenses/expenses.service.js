@@ -1,6 +1,7 @@
 const prisma = require('../../config/prisma');
 const AppError = require('../../utils/AppError');
 const monthsService = require('../months/months.service');
+const { round2 } = require('../../utils/math');
 
 function assertDateMatchesMonth(date, month) {
   const matches = date.getUTCMonth() + 1 === month.month && date.getUTCFullYear() === month.year;
@@ -11,8 +12,7 @@ function assertDateMatchesMonth(date, month) {
 
 function dueDateFromDay(month, day) {
   // Dia de vencimento maior que os dias do mês (ex.: dia 31 em fevereiro)
-  // cai automaticamente no último dia válido daquele mês, em vez de
-  // estourar para o mês seguinte (comportamento padrão do construtor Date).
+  // cai automaticamente no último dia válido daquele mês.
   const lastDayOfMonth = new Date(Date.UTC(month.year, month.month, 0)).getUTCDate();
   const safeDay = Math.min(day, lastDayOfMonth);
   return new Date(Date.UTC(month.year, month.month - 1, safeDay));
@@ -28,11 +28,59 @@ async function assertCategoryIsValid(userId, categoryId) {
 }
 
 /**
+ * BLOQUEIO DE SALDO INSUFICIENTE (Item 3 do prompt)
+ * Calcula o saldo disponível atual do usuário no mês.
+ * saldo = receitas - despesas pagas - saldo guardado (savings net) - goals net
+ */
+async function getAvailableBalance(userId, monthId) {
+  const month = await monthsService.getMonthOrThrow(userId, monthId);
+
+  const [incomesAgg, paidAgg] = await Promise.all([
+    prisma.income.aggregate({ where: { userId, monthId }, _sum: { value: true } }),
+    prisma.expense.aggregate({
+      where: { userId, monthId, deletedAt: null, status: { in: ['paid', 'settled'] } },
+      _sum: { paidAmount: true },
+    }),
+  ]);
+
+  const savingsService = require('../savings/savings.service');
+  const startDate = new Date(Date.UTC(month.year, month.month - 1, 1));
+  const endDate = new Date(Date.UTC(month.year, month.month, 0, 23, 59, 59));
+  const savingsNet = await savingsService.getNetMovementInRange(userId, startDate, endDate);
+
+  // Para savings depositados "externamente" NÃO descontamos do saldo da conta
+  const externalSavingsAgg = await prisma.savingsTransaction.aggregate({
+    where: { userId, type: 'deposit', origin: 'external', transactionDate: { gte: startDate, lte: endDate } },
+    _sum: { value: true },
+  });
+  const externalSavings = Number(externalSavingsAgg._sum.value ?? 0);
+
+  const incomeTotal = Number(incomesAgg._sum.value ?? 0);
+  const expensesPaid = Number(paidAgg._sum.paidAmount ?? 0);
+  // savingsNet = total deposits - total withdraws; external deposits não saem do saldo
+  const effectiveSavingsNet = round2(savingsNet - externalSavings);
+
+  return round2(incomeTotal - expensesPaid - effectiveSavingsNet);
+}
+
+/**
+ * Verifica se há saldo suficiente para o pagamento.
+ * Lança AppError se não houver saldo.
+ */
+async function assertSufficientBalance(userId, monthId, amount) {
+  const available = await getAvailableBalance(userId, monthId);
+  if (amount > available + 0.009) {
+    throw new AppError(
+      `Saldo insuficiente. Disponível: R$ ${available.toFixed(2)}. Necessário: R$ ${amount.toFixed(2)}.`,
+      422,
+      'INSUFFICIENT_BALANCE'
+    );
+  }
+}
+
+/**
  * Aplica a regra "Status = Atrasado" (due_date no passado e ainda não pago)
- * antes de qualquer listagem. Não há worker/cron nesta entrega — o reflexo
- * é feito sob demanda, o que é suficiente na escala de um usuário mas vira
- * um ponto a revisar (job agendado) quando o sistema crescer para milhares
- * de usuários consultando dashboards raramente.
+ * antes de qualquer listagem.
  */
 async function syncOverdueStatuses(userId, monthId) {
   await prisma.expense.updateMany({
@@ -65,6 +113,12 @@ async function createVariableExpense(userId, payload) {
   assertDateMatchesMonth(payload.date, month);
   await assertCategoryIsValid(userId, payload.categoryId);
 
+  // Se já vai ser paga imediatamente (paid=true), verifica saldo disponível
+  // apenas se a forma de pagamento NÃO for cartão de crédito
+  if (payload.paid && payload.paymentMethod !== 'credit') {
+    await assertSufficientBalance(userId, payload.monthId, payload.value);
+  }
+
   return prisma.expense.create({
     data: {
       userId,
@@ -90,6 +144,12 @@ async function createFixedExpense(userId, payload) {
   monthsService.assertMonthIsOpen(month);
   await assertCategoryIsValid(userId, payload.categoryId);
 
+  // Valida cartão se forma de pagamento for crédito
+  if (payload.paymentMethod === 'credit' && payload.cardId) {
+    const card = await prisma.card.findFirst({ where: { id: BigInt(payload.cardId), userId } });
+    if (!card) throw new AppError('Cartão não encontrado.', 404, 'CARD_NOT_FOUND');
+  }
+
   return prisma.$transaction(async (tx) => {
     const template = await tx.fixedExpenseTemplate.create({
       data: {
@@ -99,6 +159,8 @@ async function createFixedExpense(userId, payload) {
         value: payload.value,
         dueDay: payload.dueDay,
         active: true,
+        paymentMethod: payload.paymentMethod ?? 'pix',
+        cardId: payload.paymentMethod === 'credit' ? (payload.cardId ? BigInt(payload.cardId) : null) : null,
       },
     });
 
@@ -136,7 +198,11 @@ async function updateFixedTemplate(userId, templateId, payload) {
   if (payload.categoryId) {
     await assertCategoryIsValid(userId, payload.categoryId);
   }
-  // Altera apenas o template — instâncias passadas permanecem inalteradas (histórico imutável).
+  // Valida cartão se mudar para crédito
+  if (payload.paymentMethod === 'credit' && payload.cardId) {
+    const card = await prisma.card.findFirst({ where: { id: BigInt(payload.cardId), userId } });
+    if (!card) throw new AppError('Cartão não encontrado.', 404, 'CARD_NOT_FOUND');
+  }
   return prisma.fixedExpenseTemplate.update({
     where: { id: templateId },
     data: {
@@ -144,6 +210,9 @@ async function updateFixedTemplate(userId, templateId, payload) {
       ...(payload.value !== undefined && { value: payload.value }),
       ...(payload.categoryId && { categoryId: payload.categoryId }),
       ...(payload.dueDay !== undefined && { dueDay: payload.dueDay }),
+      ...(payload.paymentMethod && { paymentMethod: payload.paymentMethod }),
+      ...(payload.paymentMethod === 'credit' ? { cardId: payload.cardId ? BigInt(payload.cardId) : null } : {}),
+      ...(payload.paymentMethod && payload.paymentMethod !== 'credit' ? { cardId: null } : {}),
     },
     include: { category: true },
   });
@@ -156,11 +225,6 @@ async function deleteFixedTemplate(userId, templateId) {
   }
 
   return prisma.$transaction(async (tx) => {
-    // Remove na hora a(s) instância(s) ainda pendentes/atrasadas/parciais
-    // em meses abertos — é isso que faz a despesa "sumir" imediatamente da
-    // tela em vez de só deixar de ser gerada a partir do próximo fechamento.
-    // Instâncias já pagas e instâncias de meses fechados (histórico
-    // imutável) nunca são tocadas aqui, mesmo que o template seja apagado.
     await tx.expense.deleteMany({
       where: {
         fixedTemplateId: templateId,
@@ -169,9 +233,6 @@ async function deleteFixedTemplate(userId, templateId) {
       },
     });
 
-    // Soft-delete via desativação — preserva instâncias já pagas/históricas
-    // e impede a geração de novas instâncias em fechamentos futuros.
-    // Exclusão física do template só é possível se ele nunca gerou nenhuma instância.
     const instanceCount = await tx.expense.count({ where: { fixedTemplateId: templateId } });
     if (instanceCount > 0) {
       return tx.fixedExpenseTemplate.update({ where: { id: templateId }, data: { active: false } });
@@ -180,7 +241,7 @@ async function deleteFixedTemplate(userId, templateId) {
   });
 }
 
-// ---------------- Edição / exclusão (variável e fixa apenas) ----------------
+// ---------------- Edição / exclusão ----------------
 
 async function getOwnedExpenseOrThrow(userId, expenseId) {
   const expense = await prisma.expense.findFirst({
@@ -203,13 +264,6 @@ function assertEditableType(expense) {
   }
 }
 
-/**
- * Parcela de dívida (priority) pode ter descrição/categoria/data/observação
- * editadas livremente, mas o VALOR é sempre derivado do saldo devedor da
- * dívida (debts.service.computeInstallmentValue) — editar o valor aqui
- * direto, fora desse cálculo, corromperia remainingBalance silenciosamente.
- * Quem quiser mudar o valor da parcela precisa editar a dívida de origem.
- */
 function assertValueIsEditable(expense, payload) {
   if (expense.type === 'priority' && payload.value !== undefined) {
     throw new AppError(
@@ -257,22 +311,13 @@ async function deleteExpense(userId, expenseId) {
     );
   }
   monthsService.assertMonthIsOpen(expense.month);
-  // Só alcança este ponto se o mês ainda está aberto, então excluir
-  // fisicamente não fere a regra de histórico imutável (mês fechado nunca
-  // chega aqui — assertMonthIsOpen barra antes).
   await prisma.expense.delete({ where: { id: expenseId } });
 }
 
-// ---------------- Pagamento (genérico, delega dívida flexível ao módulo debts) ----------------
+// ---------------- Pagamento (ITEM 3: bloqueio de saldo insuficiente) ----------------
 
 async function payExpense(userId, expenseId, { amount, paymentMethod }) {
   const expense = await getOwnedExpenseOrThrow(userId, expenseId);
-  // Importante: aqui NÃO chamamos assertMonthIsOpen. Pagar uma conta atrasada
-  // de um mês já fechado é uma ação legítima e esperada (é justamente para
-  // isso que existe o status "Atrasado") — ela registra um fato novo ("foi
-  // pago em tal data"), sem reescrever o valor/categoria/data originais do
-  // lançamento. Isso é diferente de editar ou excluir o lançamento em si,
-  // que continuam bloqueados em mês fechado por updateExpense/deleteExpense.
 
   if (expense.type === 'card') {
     throw new AppError(
@@ -286,17 +331,17 @@ async function payExpense(userId, expenseId, { amount, paymentMethod }) {
     throw new AppError('Esta despesa já está paga.', 409, 'EXPENSE_ALREADY_PAID');
   }
 
+  // BLOQUEIO: verificar saldo antes de pagar (exceto cartão de crédito,
+  // que já vai para fatura e não desconta do saldo imediatamente)
+  if (paymentMethod !== 'credit') {
+    await assertSufficientBalance(userId, expense.monthId, amount);
+  }
+
   if (expense.type === 'priority') {
-    // Lazy require evita dependência circular no carregamento dos módulos
-    // (debts.service nunca precisa importar expenses.service de volta).
     const debtsService = require('../debts/debts.service');
     return debtsService.applyPaymentToInstallment(userId, expense, amount, paymentMethod);
   }
 
-  // Fixa e variável (quando criada como pendente): a regra do projeto não
-  // previu pagamento flexível fora de dívidas de prioridade, então aqui
-  // exigimos o valor exato — evita criar saldo residual "invisível" em
-  // contas que o usuário nunca pediu para serem flexíveis.
   if (Math.abs(amount - Number(expense.value)) > 0.009) {
     throw new AppError(
       'Esta despesa exige pagamento do valor exato. Para pagamento flexível, use uma despesa de prioridade.',
@@ -328,4 +373,6 @@ module.exports = {
   dueDateFromDay,
   assertCategoryIsValid,
   assertDateMatchesMonth,
+  getAvailableBalance,
+  assertSufficientBalance,
 };

@@ -9,20 +9,29 @@ const createVariableExpenseSchema = z.object({
   categoryId: z.coerce.bigint(),
   date: z.coerce.date(),
   paymentMethod: z.enum(PAYMENT_METHODS),
-  // Despesa variável normalmente já representa um gasto que aconteceu
-  // (ex.: compra no mercado) — por isso nasce paga por padrão. O usuário
-  // pode desmarcar para registrar algo planejado e ainda não pago.
   paid: z.boolean().default(true),
   observation: z.string().trim().max(255).optional(),
 });
 
+// Item 1: despesas fixas agora exigem forma de pagamento e cartão (opcional)
 const createFixedExpenseSchema = z.object({
   monthId: z.coerce.bigint(),
   description: z.string().trim().min(1, 'Descrição é obrigatória.').max(160),
   value: z.coerce.number().positive('Valor deve ser maior que zero.'),
   categoryId: z.coerce.bigint(),
   dueDay: z.coerce.number().int().min(1).max(31),
+  paymentMethod: z.enum(PAYMENT_METHODS).default('pix'),
+  cardId: z.coerce.bigint().optional().nullable(),
   observation: z.string().trim().max(255).optional(),
+});
+
+const updateFixedTemplateSchema = z.object({
+  description: z.string().trim().min(1).max(160).optional(),
+  value: z.coerce.number().positive().optional(),
+  categoryId: z.coerce.bigint().optional(),
+  dueDay: z.coerce.number().int().min(1).max(31).optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+  cardId: z.coerce.bigint().optional().nullable(),
 });
 
 const updateExpenseSchema = z.object({
@@ -41,6 +50,7 @@ const payExpenseSchema = z.object({
 module.exports = {
   createVariableExpenseSchema,
   createFixedExpenseSchema,
+  updateFixedTemplateSchema,
   updateExpenseSchema,
   payExpenseSchema,
 };

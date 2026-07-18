@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
 import { ToastContainer } from './components/ui/Toast';
 import { AppLayout } from './components/layout/AppLayout';
+import { TutorialDriver, useAutoTutorial } from './components/tutorial/TutorialDriver';
 
 // Pages
 import LoginPage           from './pages/LoginPage';
@@ -15,6 +16,7 @@ import ExpensesPage        from './pages/ExpensesPage';
 import CardsPage           from './pages/CardsPage';
 import SavingsPage         from './pages/SavingsPage';
 import GoalsPage           from './pages/GoalsPage';
+import SubscriptionsPage   from './pages/SubscriptionsPage';
 import PurchaseSimulatorPage from './pages/PurchaseSimulatorPage';
 import WhatIfSimulatorPage from './pages/WhatIfSimulatorPage';
 import HistoryPage         from './pages/HistoryPage';
@@ -24,8 +26,7 @@ import InsightsPage        from './pages/InsightsPage';
 import ReportsPage         from './pages/ReportsPage';
 import SettingsPage        from './pages/SettingsPage';
 
-// ── Error Boundary ─────────────────────────────────────────
-// Captura qualquer erro de renderização e evita tela branca silenciosa.
+// ── Error Boundary ──────────────────────────────────────────
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
   static getDerivedStateFromError(error) { return { error }; }
@@ -49,7 +50,7 @@ class ErrorBoundary extends Component {
   }
 }
 
-// ── Protected Route ────────────────────────────────────────
+// ── Protected Route ─────────────────────────────────────────
 function ProtectedRoute({ children }) {
   const status = useAuthStore((s) => s.status);
   if (status === 'idle' || status === 'loading') {
@@ -64,16 +65,14 @@ function ProtectedRoute({ children }) {
   return children;
 }
 
-// ── Auth Shell ─────────────────────────────────────────────
+// ── Auth Shell ──────────────────────────────────────────────
 function AuthShell({ children }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4">
-      {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
         <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-info/5 rounded-full blur-3xl" />
       </div>
-
       <div className="relative w-full max-w-sm animate-scale-in">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-3">
@@ -91,7 +90,18 @@ function AuthShell({ children }) {
   );
 }
 
-// ── App ────────────────────────────────────────────────────
+// ── App Shell autenticado (com tutorial) ────────────────────
+function AuthenticatedShell() {
+  useAutoTutorial(); // Inicia automaticamente no primeiro acesso
+  return (
+    <>
+      <TutorialDriver />
+      <AppLayout />
+    </>
+  );
+}
+
+// ── App ─────────────────────────────────────────────────────
 export default function App() {
   const bootstrap    = useAuthStore((s) => s.bootstrap);
   const forceSignOut = useAuthStore((s) => s.forceSignOut);
@@ -111,24 +121,27 @@ export default function App() {
         <Route path="/forgot-password" element={<AuthShell><ForgotPasswordPage /></AuthShell>} />
         <Route path="/reset-password"  element={<AuthShell><ResetPasswordPage /></AuthShell>} />
 
-        <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-          <Route path="/dashboard"          element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+        <Route element={<ProtectedRoute><AuthenticatedShell /></ProtectedRoute>}>
+          <Route path="/"                   element={<ErrorBoundary><DashboardPage /></ErrorBoundary>} />
+          <Route path="/dashboard"          element={<Navigate to="/" replace />} />
           <Route path="/incomes"            element={<ErrorBoundary><IncomesPage /></ErrorBoundary>} />
           <Route path="/expenses"           element={<ErrorBoundary><ExpensesPage /></ErrorBoundary>} />
           <Route path="/cards"              element={<ErrorBoundary><CardsPage /></ErrorBoundary>} />
           <Route path="/savings"            element={<ErrorBoundary><SavingsPage /></ErrorBoundary>} />
           <Route path="/goals"              element={<ErrorBoundary><GoalsPage /></ErrorBoundary>} />
+          <Route path="/subscriptions"      element={<ErrorBoundary><SubscriptionsPage /></ErrorBoundary>} />
           <Route path="/simulator/purchase" element={<ErrorBoundary><PurchaseSimulatorPage /></ErrorBoundary>} />
           <Route path="/simulator/what-if"  element={<ErrorBoundary><WhatIfSimulatorPage /></ErrorBoundary>} />
           <Route path="/history"            element={<ErrorBoundary><HistoryPage /></ErrorBoundary>} />
           <Route path="/trends"             element={<ErrorBoundary><TrendsPage /></ErrorBoundary>} />
           <Route path="/budgets"            element={<ErrorBoundary><BudgetsPage /></ErrorBoundary>} />
+          <Route path="/planning"           element={<ErrorBoundary><BudgetsPage /></ErrorBoundary>} />
           <Route path="/insights"           element={<ErrorBoundary><InsightsPage /></ErrorBoundary>} />
           <Route path="/reports"            element={<ErrorBoundary><ReportsPage /></ErrorBoundary>} />
           <Route path="/settings"           element={<ErrorBoundary><SettingsPage /></ErrorBoundary>} />
         </Route>
 
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ErrorBoundary>
   );

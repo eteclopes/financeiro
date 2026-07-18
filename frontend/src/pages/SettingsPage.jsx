@@ -5,6 +5,7 @@ import { extractErrorMessage } from '../lib/api';
 import { Card, CardHeader, Badge, Button } from '../components/ui/index';
 import { Modal, FormGroup, Input, Select } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
+import { useTutorialStore } from '../store/tutorialStore';
 
 export default function SettingsPage() {
   const user  = useAuthStore((s) => s.user);
@@ -202,6 +203,25 @@ export default function SettingsPage() {
               </span>
             ))}
           </div>
+        </div>
+      </Card>
+
+      {/* Card Tutorial */}
+      <Card>
+        <CardHeader title="Tutorial do sistema" subtitle="Reveja o guia interativo a qualquer momento." />
+        <div className="flex items-center justify-between flex-wrap gap-4 p-1">
+          <div>
+            <p className="text-sm text-slate-700 dark:text-zinc-300">O tutorial percorre todas as funcionalidades com destaque visual e explicações passo a passo.</p>
+            <p className="text-xs text-muted mt-1">Ideal para conhecer novidades ou apresentar o sistema para outra pessoa.</p>
+          </div>
+          <Button
+            data-tutorial-btn
+            onClick={() => useTutorialStore.getState().start()}
+            variant="outline"
+            className="shrink-0"
+          >
+            🎓 Ver tutorial novamente
+          </Button>
         </div>
       </Card>
     </div>

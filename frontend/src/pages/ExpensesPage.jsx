@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useMonthStore } from '../store/monthStore';
-import { expensesApi, debtsApi, categoriesApi } from '../lib/services';
+import { expensesApi, debtsApi, categoriesApi, cardsApi } from '../lib/services';
 import { extractErrorMessage } from '../lib/api';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, Badge, Button, EmptyState, Skeleton, TabGroup } from '../components/ui/index';
@@ -9,25 +8,17 @@ import { Modal, ConfirmDialog, FormGroup, Input, Select } from '../components/ui
 import { CategorySelect } from '../components/ui/CategorySelect';
 import { useUIStore } from '../store/uiStore';
 
-const PM_LABELS = { cash:'Dinheiro', pix:'PIX', debit:'Débito', credit:'Crédito', transfer:'Transferência' };
+const PM_LABELS = { cash:'Dinheiro', pix:'PIX', debit:'Débito', credit:'Cartão de Crédito', transfer:'Transferência' };
 const STATUS_V  = { pending:'warning', partial:'info', paid:'success', late:'danger', settled:'success' };
 const STATUS_L  = { pending:'Pendente', partial:'Parcial', paid:'Pago', late:'Atrasado', settled:'Quitado' };
 
 export default function ExpensesPage() {
   const selectedMonthId = useMonthStore((s) => s.selectedMonthId);
-  // Lê a aba inicial de `?tab=` na URL, se presente (ex.: vindo de um
-  // resultado da busca global do Topbar) — senão mantém o padrão de
-  // sempre, 'priority'. `useState` com função só lê isso UMA vez, na
-  // primeira renderização; a troca de aba pelo usuário depois disso
-  // funciona exatamente como antes (não fica "preso" sincronizando com a URL).
-  const [searchParams] = useSearchParams();
-  const [tab, setTab]       = useState(() => {
-    const fromUrl = searchParams.get('tab');
-    return ['priority', 'fixed', 'variable'].includes(fromUrl) ? fromUrl : 'priority';
-  });
+  const [tab, setTab]       = useState('priority');
   const [expenses, setExpenses] = useState([]);
   const [debts, setDebts]   = useState([]);
   const [categories, setCategories] = useState([]);
+  const [cards, setCards]   = useState([]);
   const [loading, setLoading] = useState(true);
   const toast = useUIStore((s) => s);
 
@@ -39,19 +30,19 @@ export default function ExpensesPage() {
 
   // ── Modal nova despesa variável ──
   const [varModal, setVarModal] = useState(false);
-  const [varForm, setVarForm]   = useState({ description:'', value:'', categoryId:'', date: today(), paymentMethod:'pix', paid:true });
+  const [varForm, setVarForm]   = useState({ description:'', value:'', categoryId:'', date: todayStr(), paymentMethod:'pix', paid:true });
 
   // ── Modal editar despesa variável ──
   const [editVarModal, setEditVarModal] = useState(null);
   const [editVarForm, setEditVarForm]   = useState({ description:'', value:'', categoryId:'', dueDate:'', observation:'' });
 
-  // ── Modal nova despesa fixa ──
+  // ── Modal nova despesa fixa ── (Item 1: + forma de pagamento + cartão)
   const [fixModal, setFixModal] = useState(false);
-  const [fixForm, setFixForm]   = useState({ description:'', value:'', categoryId:'', dueDay:'10' });
+  const [fixForm, setFixForm]   = useState({ description:'', value:'', categoryId:'', dueDay:'10', paymentMethod:'pix', cardId:'' });
 
   // ── Modal editar despesa fixa ──
   const [editFixModal, setEditFixModal] = useState(null);
-  const [editFixForm, setEditFixForm]   = useState({ description:'', value:'', dueDay:'' });
+  const [editFixForm, setEditFixForm]   = useState({ description:'', value:'', dueDay:'', paymentMethod:'pix', cardId:'' });
 
   // ── Modal nova dívida ──
   const [debtModal, setDebtModal] = useState(false);
@@ -66,20 +57,22 @@ export default function ExpensesPage() {
   const [deleting, setDeleting]   = useState(false);
   const [saving, setSaving]       = useState(false);
 
-  function today() { return new Date().toISOString().slice(0,10); }
+  function todayStr() { return new Date().toISOString().slice(0,10); }
 
   const load = useCallback(async () => {
     if (!selectedMonthId) return;
     setLoading(true);
     try {
-      const [exp, dbt, cats] = await Promise.all([
+      const [exp, dbt, cats, cds] = await Promise.all([
         expensesApi.list(selectedMonthId),
         debtsApi.list(),
         categoriesApi.list('expense'),
+        cardsApi.list(),
       ]);
       setExpenses(exp.data.expenses ?? []);
       setDebts(dbt.data.debts ?? []);
       setCategories(cats.data.categories ?? []);
+      setCards(cds.data.cards ?? []);
     } catch { toast.error('Erro ao carregar despesas.'); }
     finally  { setLoading(false); }
   }, [selectedMonthId]);
@@ -138,10 +131,20 @@ export default function ExpensesPage() {
 
   async function saveFixed() {
     if (!fixForm.description || !fixForm.value) { toast.error('Preencha descrição e valor.'); return; }
+    if (fixForm.paymentMethod === 'credit' && !fixForm.cardId) {
+      toast.error('Selecione o cartão de crédito.'); return;
+    }
     setSaving(true);
     try {
       const cat = fixForm.categoryId || (categories[0]?.id ?? '');
-      await expensesApi.createFixed({ ...fixForm, value: parseFloat(fixForm.value), dueDay: parseInt(fixForm.dueDay), categoryId: String(cat), monthId: selectedMonthId });
+      await expensesApi.createFixed({
+        ...fixForm,
+        value: parseFloat(fixForm.value),
+        dueDay: parseInt(fixForm.dueDay),
+        categoryId: String(cat),
+        monthId: selectedMonthId,
+        cardId: fixForm.paymentMethod === 'credit' ? fixForm.cardId : null,
+      });
       toast.success('Despesa fixa criada.'); setFixModal(false); load();
     } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
     finally { setSaving(false); }
@@ -149,12 +152,17 @@ export default function ExpensesPage() {
 
   async function saveEditFixed() {
     if (!editFixForm.description || !editFixForm.value) { toast.error('Preencha os campos.'); return; }
+    if (editFixForm.paymentMethod === 'credit' && !editFixForm.cardId) {
+      toast.error('Selecione o cartão de crédito.'); return;
+    }
     setSaving(true);
     try {
       await expensesApi.updateFixedTemplate(editFixModal.fixedTemplateId, {
         description: editFixForm.description,
         value: parseFloat(editFixForm.value),
         dueDay: parseInt(editFixForm.dueDay),
+        paymentMethod: editFixForm.paymentMethod,
+        cardId: editFixForm.paymentMethod === 'credit' ? editFixForm.cardId : null,
       });
       toast.success('Despesa fixa atualizada. Próximos meses refletirão a mudança.'); setEditFixModal(null); load();
     } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
@@ -215,25 +223,42 @@ export default function ExpensesPage() {
     setDeleting(true);
     try {
       await debtsApi.delete(debt.id);
-      toast.success('Dívida removida. A parcela deste mês foi excluída e não haverá novas parcelas.');
+      toast.success('Dívida removida.');
       setDeleteTarget(null); load();
     } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao remover dívida.')); }
     finally { setDeleting(false); }
   }
 
-  // ── Render ────────────────────────────────────────────────
-  // Antes era `const AddButton = () => (...)`, usado como `<AddButton />`.
-  // Mesmo sem campo de texto (é só um botão), uma função-componente
-  // recriada a cada render do pai perde a identidade estável que o React
-  // usa pra decidir "atualizar" em vez de "desmontar e remontar" — igual
-  // ao problema corrigido em WhatIfSimulatorPage.jsx. Aqui a correção é
-  // mais simples: como não precisa de props próprias, basta parar de
-  // tratar como um componente (JSX `<Tag />`) e guardar o elemento pronto
-  // numa variável comum, inserida com `{addButton}`.
+  const activeCards = cards.filter(c => c.active);
+
+  // Campos de forma de pagamento reutilizáveis
+  function PaymentMethodFields({ form, setForm }) {
+    return (
+      <>
+        <FormGroup label="Forma de pagamento">
+          <Select value={form.paymentMethod} onChange={(e) => setForm({...form, paymentMethod:e.target.value, cardId:''})}>
+            {Object.entries(PM_LABELS).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+          </Select>
+        </FormGroup>
+        {form.paymentMethod === 'credit' && (
+          <FormGroup label="Cartão de crédito" required>
+            <Select value={form.cardId} onChange={(e) => setForm({...form, cardId:e.target.value})}>
+              <option value="">Selecione o cartão...</option>
+              {activeCards.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+            {activeCards.length === 0 && (
+              <p className="text-xs text-warning mt-1">Nenhum cartão ativo cadastrado. Cadastre um em Cartões.</p>
+            )}
+          </FormGroup>
+        )}
+      </>
+    );
+  }
+
   const addButton = (
     <Button size="sm" onClick={() => {
-      if (tab === 'variable') { setVarForm({ description:'', value:'', categoryId:'', date: today(), paymentMethod:'pix', paid:true }); setVarModal(true); }
-      if (tab === 'fixed')    { setFixForm({ description:'', value:'', categoryId:'', dueDay:'10' }); setFixModal(true); }
+      if (tab === 'variable') { setVarForm({ description:'', value:'', categoryId:'', date: todayStr(), paymentMethod:'pix', paid:true }); setVarModal(true); }
+      if (tab === 'fixed')    { setFixForm({ description:'', value:'', categoryId:'', dueDay:'10', paymentMethod:'pix', cardId:'' }); setFixModal(true); }
       if (tab === 'priority') { setDebtForm({ description:'', categoryId:'', totalValue:'', installmentsCount:'1', flexiblePayment:false, dueDay:'10' }); setDebtModal(true); }
     }}>
       + {tab === 'variable' ? 'Nova Despesa' : tab === 'fixed' ? 'Nova Fixa' : 'Nova Dívida'}
@@ -257,15 +282,12 @@ export default function ExpensesPage() {
             description="Adicione uma nova despesa clicando no botão acima."
             action={addButton} />
         ) : tab === 'priority' ? (
-          /* ── Tabela Prioridade ── */
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-subtle/60 dark:bg-white/[0.03]">
-                <tr>
-                  {['Descrição','Parcela','Pago','Saldo Devedor','Vencimento','Status','Ações'].map(h=>(
-                    <th key={h} className="table-header">{h}</th>
-                  ))}
-                </tr>
+                <tr>{['Descrição','Parcela','Pago','Saldo Devedor','Vencimento','Status','Ações'].map(h=>(
+                  <th key={h} className="table-header">{h}</th>
+                ))}</tr>
               </thead>
               <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                 {filtered.map((e) => {
@@ -280,31 +302,18 @@ export default function ExpensesPage() {
                         {debt ? formatCurrency(debt.remainingBalance) : '—'}
                       </td>
                       <td className="table-cell text-muted">{formatShortDate(e.dueDate)}</td>
-                      <td className="table-cell">
-                        <Badge variant={STATUS_V[e.status] ?? 'default'}>{STATUS_L[e.status] ?? e.status}</Badge>
-                      </td>
+                      <td className="table-cell"><Badge variant={STATUS_V[e.status] ?? 'default'}>{STATUS_L[e.status] ?? e.status}</Badge></td>
                       <td className="table-cell">
                         <div className="flex items-center gap-2">
-                          {!alreadyPaid && (
-                            <Button size="sm" onClick={() => openPay(e)}>Pagar</Button>
-                          )}
-                          {alreadyPaid && (
-                            <span className="text-xs text-primary-dark font-medium flex items-center gap-1">✓ Pago</span>
-                          )}
+                          {!alreadyPaid && <Button size="sm" onClick={() => openPay(e)}>Pagar</Button>}
+                          {alreadyPaid && <span className="text-xs text-primary-dark font-medium">✓ Pago</span>}
                           {debt && (
                             <>
                               <Button size="sm" variant="ghost" onClick={() => {
                                 setEditDebtModal(debt);
-                                setEditDebtForm({
-                                  description: debt.description,
-                                  categoryId: String(debt.categoryId),
-                                  dueDay: String(debt.dueDay),
-                                  flexiblePayment: !!debt.flexiblePayment,
-                                });
+                                setEditDebtForm({ description: debt.description, categoryId: String(debt.categoryId), dueDay: String(debt.dueDay), flexiblePayment: !!debt.flexiblePayment });
                               }}>Editar</Button>
-                              <Button size="sm" variant="ghost" className="text-danger hover:text-danger-dark" onClick={() => setDeleteTarget({ ...debt, _type:'debt' })}>
-                                Remover
-                              </Button>
+                              <Button size="sm" variant="ghost" className="text-danger hover:text-danger-dark" onClick={() => setDeleteTarget({ ...debt, _type:'debt' })}>Remover</Button>
                             </>
                           )}
                         </div>
@@ -316,15 +325,12 @@ export default function ExpensesPage() {
             </table>
           </div>
         ) : tab === 'fixed' ? (
-          /* ── Tabela Fixas ── */
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-subtle/60 dark:bg-white/[0.03]">
-                <tr>
-                  {['Descrição','Categoria','Valor','Vencimento','Status','Ações'].map(h=>(
-                    <th key={h} className="table-header">{h}</th>
-                  ))}
-                </tr>
+                <tr>{['Descrição','Categoria','Valor','Pagamento','Vencimento','Status','Ações'].map(h=>(
+                  <th key={h} className="table-header">{h}</th>
+                ))}</tr>
               </thead>
               <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                 {filtered.map((e) => (
@@ -332,10 +338,15 @@ export default function ExpensesPage() {
                     <td className="table-cell font-semibold text-slate-800 dark:text-zinc-200">{e.description}</td>
                     <td className="table-cell text-muted">{e.category?.name}</td>
                     <td className="table-cell font-mono tabular-nums">{formatCurrency(e.value)}</td>
-                    <td className="table-cell text-muted">{formatShortDate(e.dueDate)}</td>
                     <td className="table-cell">
-                      <Badge variant={STATUS_V[e.status] ?? 'default'}>{STATUS_L[e.status] ?? e.status}</Badge>
+                      <span className="text-xs">
+                        {e.fixedTemplate?.paymentMethod === 'credit'
+                          ? `💳 ${cards.find(c=>String(c.id)===String(e.fixedTemplate?.cardId))?.name ?? 'Cartão'}`
+                          : PM_LABELS[e.fixedTemplate?.paymentMethod] ?? '—'}
+                      </span>
                     </td>
+                    <td className="table-cell text-muted">{formatShortDate(e.dueDate)}</td>
+                    <td className="table-cell"><Badge variant={STATUS_V[e.status] ?? 'default'}>{STATUS_L[e.status] ?? e.status}</Badge></td>
                     <td className="table-cell">
                       <div className="flex items-center gap-2">
                         {!['paid','settled'].includes(e.status) && (
@@ -343,11 +354,15 @@ export default function ExpensesPage() {
                         )}
                         <Button size="sm" variant="ghost" onClick={() => {
                           setEditFixModal(e);
-                          setEditFixForm({ description: e.description, value: String(e.value), dueDay: String(e.dueDate ? new Date(e.dueDate).getUTCDate() : '10') });
+                          setEditFixForm({
+                            description: e.description,
+                            value: String(e.value),
+                            dueDay: String(e.dueDate ? new Date(e.dueDate).getUTCDate() : '10'),
+                            paymentMethod: e.fixedTemplate?.paymentMethod ?? 'pix',
+                            cardId: e.fixedTemplate?.cardId ? String(e.fixedTemplate.cardId) : '',
+                          });
                         }}>Editar</Button>
-                        <Button size="sm" variant="ghost" className="text-danger hover:text-danger-dark" onClick={() => setDeleteTarget({ ...e, _type:'fixed' })}>
-                          Remover
-                        </Button>
+                        <Button size="sm" variant="ghost" className="text-danger hover:text-danger-dark" onClick={() => setDeleteTarget({ ...e, _type:'fixed' })}>Remover</Button>
                       </div>
                     </td>
                   </tr>
@@ -356,15 +371,12 @@ export default function ExpensesPage() {
             </table>
           </div>
         ) : (
-          /* ── Tabela Variáveis ── */
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-subtle/60 dark:bg-white/[0.03]">
-                <tr>
-                  {['Descrição','Categoria','Valor','Data','Forma','Status','Ações'].map(h=>(
-                    <th key={h} className="table-header">{h}</th>
-                  ))}
-                </tr>
+                <tr>{['Descrição','Categoria','Valor','Data','Forma','Status','Ações'].map(h=>(
+                  <th key={h} className="table-header">{h}</th>
+                ))}</tr>
               </thead>
               <tbody className="divide-y divide-border/60 dark:divide-white/[0.06]">
                 {filtered.map((e) => (
@@ -374,9 +386,7 @@ export default function ExpensesPage() {
                     <td className="table-cell font-mono tabular-nums">{formatCurrency(e.value)}</td>
                     <td className="table-cell text-muted">{formatShortDate(e.dueDate)}</td>
                     <td className="table-cell"><Badge>{PM_LABELS[e.paymentMethod] ?? e.paymentMethod}</Badge></td>
-                    <td className="table-cell">
-                      <Badge variant={STATUS_V[e.status] ?? 'default'}>{STATUS_L[e.status] ?? e.status}</Badge>
-                    </td>
+                    <td className="table-cell"><Badge variant={STATUS_V[e.status] ?? 'default'}>{STATUS_L[e.status] ?? e.status}</Badge></td>
                     <td className="table-cell">
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="ghost" onClick={() => {
@@ -389,9 +399,7 @@ export default function ExpensesPage() {
                             observation: e.observation ?? '',
                           });
                         }}>Editar</Button>
-                        <Button size="sm" variant="ghost" className="text-danger" onClick={() => setDeleteTarget({ ...e, _type:'variable' })}>
-                          Excluir
-                        </Button>
+                        <Button size="sm" variant="ghost" className="text-danger" onClick={() => setDeleteTarget({ ...e, _type:'variable' })}>Excluir</Button>
                       </div>
                     </td>
                   </tr>
@@ -409,7 +417,7 @@ export default function ExpensesPage() {
             <div className="bg-subtle dark:bg-white/[0.04] rounded-2xl p-4">
               <p className="text-xs text-muted mb-1">Despesa</p>
               <p className="font-semibold text-slate-900 dark:text-zinc-50">{payModal.description}</p>
-              <p className="text-sm text-muted mt-1">Valor da parcela: <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">{formatCurrency(payModal.value)}</span></p>
+              <p className="text-sm text-muted mt-1">Valor: <span className="font-mono font-semibold text-slate-800 dark:text-zinc-200">{formatCurrency(payModal.value)}</span></p>
             </div>
             <FormGroup label="Valor pago" required>
               <Input type="number" min="0" step="0.01" value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
@@ -421,7 +429,7 @@ export default function ExpensesPage() {
             </FormGroup>
             {payModal.type === 'priority' && (
               <p className="text-xs text-info bg-info-subtle p-3 rounded-xl border border-info/20">
-                💡 Se pagar menos que a parcela e a dívida tiver pagamento flexível, o saldo restante será acumulado para a próxima parcela.
+                💡 Pagar mais que a parcela reduz a próxima. Pagar menos aumenta. O sistema ajusta automaticamente.
               </p>
             )}
             <div className="flex gap-3 justify-end pt-1">
@@ -447,19 +455,9 @@ export default function ExpensesPage() {
             </FormGroup>
           </div>
           <FormGroup label="Categoria">
-            <CategorySelect
-              value={varForm.categoryId}
-              onChange={(e) => setVarForm({...varForm,categoryId:e.target.value})}
-              categories={categories}
-              type="expense"
-              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
-            />
+            <CategorySelect value={varForm.categoryId} onChange={(e) => setVarForm({...varForm,categoryId:e.target.value})} categories={categories} type="expense" onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])} />
           </FormGroup>
-          <FormGroup label="Forma de pagamento">
-            <Select value={varForm.paymentMethod} onChange={(e) => setVarForm({...varForm,paymentMethod:e.target.value})}>
-              {Object.entries(PM_LABELS).map(([v,l]) => <option key={v} value={v}>{l}</option>)}
-            </Select>
-          </FormGroup>
+          <PaymentMethodFields form={varForm} setForm={setVarForm} />
           <label className="flex items-center gap-2.5 text-sm cursor-pointer select-none">
             <input type="checkbox" checked={varForm.paid} onChange={(e) => setVarForm({...varForm,paid:e.target.checked})} className="w-4 h-4 rounded accent-primary" />
             <span className="text-slate-700 dark:text-zinc-300">Já foi pago</span>
@@ -478,7 +476,7 @@ export default function ExpensesPage() {
             ℹ Despesas fixas são geradas automaticamente todo mês ao fechar o período.
           </p>
           <FormGroup label="Descrição" required>
-            <Input value={fixForm.description} onChange={(e) => setFixForm({...fixForm,description:e.target.value})} placeholder="Ex: Netflix, Academia, Internet..." autoFocus />
+            <Input value={fixForm.description} onChange={(e) => setFixForm({...fixForm,description:e.target.value})} placeholder="Ex: Internet, Plano de saúde..." autoFocus />
           </FormGroup>
           <div className="grid grid-cols-2 gap-3">
             <FormGroup label="Valor mensal" required>
@@ -489,14 +487,14 @@ export default function ExpensesPage() {
             </FormGroup>
           </div>
           <FormGroup label="Categoria">
-            <CategorySelect
-              value={fixForm.categoryId}
-              onChange={(e) => setFixForm({...fixForm,categoryId:e.target.value})}
-              categories={categories}
-              type="expense"
-              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
-            />
+            <CategorySelect value={fixForm.categoryId} onChange={(e) => setFixForm({...fixForm,categoryId:e.target.value})} categories={categories} type="expense" onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])} />
           </FormGroup>
+          <PaymentMethodFields form={fixForm} setForm={setFixForm} />
+          {fixForm.paymentMethod === 'credit' && (
+            <p className="text-xs text-info bg-info-subtle p-3 rounded-xl border border-info/20">
+              💳 Esta despesa será adicionada à fatura do cartão todo mês. O saldo só é descontado quando a fatura for paga.
+            </p>
+          )}
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="outline" onClick={() => setFixModal(false)}>Cancelar</Button>
             <Button onClick={saveFixed} loading={saving}>Criar Despesa Fixa</Button>
@@ -521,6 +519,7 @@ export default function ExpensesPage() {
               <Input type="number" min="1" max="31" value={editFixForm.dueDay} onChange={(e) => setEditFixForm({...editFixForm,dueDay:e.target.value})} />
             </FormGroup>
           </div>
+          <PaymentMethodFields form={editFixForm} setForm={setEditFixForm} />
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="outline" onClick={() => setEditFixModal(null)}>Cancelar</Button>
             <Button onClick={saveEditFixed} loading={saving}>Salvar Alteração</Button>
@@ -543,20 +542,11 @@ export default function ExpensesPage() {
             </FormGroup>
           </div>
           <FormGroup label="Categoria">
-            <CategorySelect
-              value={editVarForm.categoryId}
-              onChange={(e) => setEditVarForm({...editVarForm,categoryId:e.target.value})}
-              categories={categories}
-              type="expense"
-              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
-            />
+            <CategorySelect value={editVarForm.categoryId} onChange={(e) => setEditVarForm({...editVarForm,categoryId:e.target.value})} categories={categories} type="expense" onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])} />
           </FormGroup>
           <FormGroup label="Observação" hint="opcional">
             <Input value={editVarForm.observation} onChange={(e) => setEditVarForm({...editVarForm,observation:e.target.value})} />
           </FormGroup>
-          <p className="text-xs text-muted">
-            Forma de pagamento e status (pago/pendente) não são alterados aqui — use "Pagar" na listagem para isso.
-          </p>
           <div className="flex gap-3 justify-end pt-1">
             <Button variant="outline" onClick={() => setEditVarModal(null)}>Cancelar</Button>
             <Button onClick={saveEditVariable} loading={saving}>Salvar Alteração</Button>
@@ -571,13 +561,7 @@ export default function ExpensesPage() {
             <Input value={debtForm.description} onChange={(e) => setDebtForm({...debtForm,description:e.target.value})} placeholder="Ex: Empréstimo, Financiamento..." autoFocus />
           </FormGroup>
           <FormGroup label="Categoria">
-            <CategorySelect
-              value={debtForm.categoryId}
-              onChange={(e) => setDebtForm({...debtForm,categoryId:e.target.value})}
-              categories={categories}
-              type="expense"
-              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
-            />
+            <CategorySelect value={debtForm.categoryId} onChange={(e) => setDebtForm({...debtForm,categoryId:e.target.value})} categories={categories} type="expense" onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])} />
           </FormGroup>
           <div className="grid grid-cols-3 gap-3">
             <FormGroup label="Valor total" required>
@@ -600,7 +584,7 @@ export default function ExpensesPage() {
             <input type="checkbox" checked={debtForm.flexiblePayment} onChange={(e) => setDebtForm({...debtForm,flexiblePayment:e.target.checked})} className="w-4 h-4 rounded accent-primary" />
             <div>
               <span className="text-slate-700 dark:text-zinc-300 font-medium">Aceitar pagamento parcial</span>
-              <p className="text-xs text-muted">O valor não pago será somado à próxima parcela</p>
+              <p className="text-xs text-muted">O valor extra/faltante ajusta automaticamente a próxima parcela</p>
             </div>
           </label>
           <div className="flex gap-3 justify-end pt-1">
@@ -614,19 +598,13 @@ export default function ExpensesPage() {
       <Modal open={!!editDebtModal} onClose={() => setEditDebtModal(null)} title="Editar Dívida" size="sm">
         <div className="space-y-4">
           <p className="text-xs bg-info-subtle text-info-dark p-3 rounded-xl border border-info/20">
-            ℹ Valor total e número de parcelas não podem ser alterados depois de criada a dívida. Para isso, remova esta dívida e crie uma nova.
+            ℹ Valor total e número de parcelas não podem ser alterados. Para isso, remova e recrie a dívida.
           </p>
           <FormGroup label="Descrição" required>
             <Input value={editDebtForm.description} onChange={(e) => setEditDebtForm({...editDebtForm,description:e.target.value})} />
           </FormGroup>
           <FormGroup label="Categoria">
-            <CategorySelect
-              value={editDebtForm.categoryId}
-              onChange={(e) => setEditDebtForm({...editDebtForm,categoryId:e.target.value})}
-              categories={categories}
-              type="expense"
-              onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])}
-            />
+            <CategorySelect value={editDebtForm.categoryId} onChange={(e) => setEditDebtForm({...editDebtForm,categoryId:e.target.value})} categories={categories} type="expense" onCategoryCreated={(cat) => setCategories((prev) => [...prev, cat])} />
           </FormGroup>
           <FormGroup label="Dia de vencimento">
             <Input type="number" min="1" max="31" value={editDebtForm.dueDay} onChange={(e) => setEditDebtForm({...editDebtForm,dueDay:e.target.value})} />
@@ -635,7 +613,7 @@ export default function ExpensesPage() {
             <input type="checkbox" checked={editDebtForm.flexiblePayment} onChange={(e) => setEditDebtForm({...editDebtForm,flexiblePayment:e.target.checked})} className="w-4 h-4 rounded accent-primary" />
             <div>
               <span className="text-slate-700 dark:text-zinc-300 font-medium">Aceitar pagamento parcial</span>
-              <p className="text-xs text-muted">O valor não pago será somado à próxima parcela</p>
+              <p className="text-xs text-muted">O valor extra/faltante ajusta automaticamente a próxima parcela</p>
             </div>
           </label>
           <div className="flex gap-3 justify-end pt-1">
@@ -656,9 +634,9 @@ export default function ExpensesPage() {
         title={deleteTarget?._type === 'fixed' ? 'Remover despesa fixa' : deleteTarget?._type === 'debt' ? 'Remover dívida' : 'Excluir despesa'}
         description={
           deleteTarget?._type === 'fixed'
-            ? `A despesa "${deleteTarget?.description}" será removida agora deste mês e não será mais gerada nos próximos. O histórico passado permanece.`
+            ? `A despesa "${deleteTarget?.description}" será removida e não será mais gerada nos próximos meses.`
             : deleteTarget?._type === 'debt'
-            ? `A dívida "${deleteTarget?.description}" será encerrada: a parcela deste mês (se não pago) será removida agora e não haverá novas parcelas. Parcelas já pagas permanecem no histórico.`
+            ? `A dívida "${deleteTarget?.description}" será encerrada. Parcelas já pagas permanecem no histórico.`
             : `Excluir "${deleteTarget?.description}"? Esta ação não pode ser desfeita.`
         }
         confirmLabel="Confirmar" />

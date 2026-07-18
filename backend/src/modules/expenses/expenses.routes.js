@@ -1,21 +1,14 @@
 const { Router } = require('express');
 const authenticate = require('../../middlewares/authenticate');
 const validate = require('../../middlewares/validate');
-const { z } = require('zod');
 const controller = require('./expenses.controller');
 const {
   createVariableExpenseSchema,
   createFixedExpenseSchema,
+  updateFixedTemplateSchema,
   updateExpenseSchema,
   payExpenseSchema,
 } = require('./expenses.validators');
-
-const updateFixedTemplateSchema = z.object({
-  description: z.string().trim().min(1).max(160).optional(),
-  value: z.coerce.number().positive().optional(),
-  categoryId: z.coerce.bigint().optional(),
-  dueDay: z.coerce.number().int().min(1).max(31).optional(),
-});
 
 const router = Router();
 router.use(authenticate);

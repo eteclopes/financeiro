@@ -17,6 +17,7 @@ const recommendationsRoutes = require('../modules/recommendations/recommendation
 const behavioralAnalysisRoutes = require('../modules/behavioralAnalysis/behavioralAnalysis.routes');
 const historyRoutes = require('../modules/history/history.routes');
 const searchRoutes = require('../modules/search/search.routes');
+const subscriptionsRoutes = require('../modules/subscriptions/subscriptions.routes');
 const { heavyLimiter } = require('../middlewares/rateLimiters');
 
 const router = Router();
@@ -30,6 +31,7 @@ router.use('/debts',              debtsRoutes);
 router.use('/cards',              cardsRoutes);
 router.use('/savings',            savingsRoutes);
 router.use('/goals',              goalsRoutes);
+router.use('/subscriptions',      subscriptionsRoutes);
 router.use('/dashboard',          heavyLimiter, dashboardRoutes);
 router.use('/financial-health',   heavyLimiter, financialHealthRoutes);
 router.use('/projections',        heavyLimiter, projectionsRoutes);

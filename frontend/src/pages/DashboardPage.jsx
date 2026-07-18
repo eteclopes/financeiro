@@ -139,7 +139,7 @@ export default function DashboardPage() {
       {/* Saldo em destaque + demais valores */}
       <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-4">
         {/* Hero: saldo atual */}
-        <div className={`relative overflow-hidden rounded-3xl p-6 text-white shadow-premium dark:shadow-premium-dark animate-fade-in
+        <div id="dashboard-saldo" className={`relative overflow-hidden rounded-3xl p-6 text-white shadow-premium dark:shadow-premium-dark animate-fade-in
           ${data.currentBalance >= 0 ? 'bg-gradient-to-br from-primary to-primary-dark' : 'bg-gradient-to-br from-danger to-danger-dark'}`}>
           <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/[0.08]" />
           <div className="absolute -bottom-16 -left-8 w-32 h-32 rounded-full bg-white/[0.06]" />

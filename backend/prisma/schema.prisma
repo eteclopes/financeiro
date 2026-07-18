@@ -96,6 +96,29 @@ enum SimulationType {
   increase_income
 }
 
+enum PurchaseType {
+  eventual
+  installment
+  subscription
+}
+
+enum SubscriptionStatus {
+  active
+  paused
+  cancelled
+}
+
+enum SubscriptionPeriodicity {
+  monthly
+  annual
+  custom
+}
+
+enum SavingsOrigin {
+  from_balance
+  external
+}
+
 // ---------------- MODELS ----------------
 
 model User {
@@ -123,6 +146,7 @@ model User {
   financialHealthScores FinancialHealthScore[]
   auditLogs          AuditLog[]
   simulations        Simulation[]
+  subscriptions      Subscription[]
 
   @@map("users")
 }
@@ -173,6 +197,7 @@ model Category {
   debts               Debt[]
   cardPurchases       CardPurchase[]
   expenses            Expense[]
+  subscriptions       Subscription[]
 
   @@unique([userId, name, type])
   @@index([type])
@@ -243,18 +268,23 @@ model Income {
 }
 
 model FixedExpenseTemplate {
-  id          BigInt   @id @default(autoincrement())
-  userId      BigInt   @map("user_id")
-  description String   @db.VarChar(160)
-  categoryId  BigInt   @map("category_id")
-  value       Decimal  @db.Decimal(12, 2)
-  dueDay      Int      @map("due_day") @db.SmallInt
-  active      Boolean  @default(true)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id            BigInt         @id @default(autoincrement())
+  userId        BigInt         @map("user_id")
+  description   String         @db.VarChar(160)
+  categoryId    BigInt         @map("category_id")
+  value         Decimal        @db.Decimal(12, 2)
+  dueDay        Int            @map("due_day") @db.SmallInt
+  active        Boolean        @default(true)
+  // Forma de pagamento: se credit, usa cartão; caso contrário desconta do saldo
+  paymentMethod PaymentMethod  @default(pix) @map("payment_method")
+  // Cartão vinculado (apenas quando paymentMethod = credit)
+  cardId        BigInt?        @map("card_id")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
 
   user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   category Category  @relation(fields: [categoryId], references: [id])
+  card     Card?     @relation(fields: [cardId], references: [id])
   expenses Expense[]
 
   @@map("fixed_expense_templates")
@@ -296,9 +326,11 @@ model Card {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cardPurchases CardPurchase[]
-  cardInvoices  CardInvoice[]
+  user                  User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardPurchases         CardPurchase[]
+  cardInvoices          CardInvoice[]
+  fixedExpenseTemplates FixedExpenseTemplate[]
+  subscriptions         Subscription[]
 
   @@index([userId])
   @@map("cards")
@@ -381,14 +413,16 @@ model Expense {
 }
 
 model SavingsTransaction {
-  id              BigInt      @id @default(autoincrement())
-  userId          BigInt      @map("user_id")
+  id              BigInt        @id @default(autoincrement())
+  userId          BigInt        @map("user_id")
   type            SavingsType
-  value           Decimal     @db.Decimal(12, 2)
-  transactionDate DateTime    @map("transaction_date") @db.Date
-  observation     String?     @db.VarChar(255)
-  balanceAfter    Decimal     @map("balance_after") @db.Decimal(12, 2)
-  createdAt       DateTime    @default(now()) @map("created_at")
+  value           Decimal       @db.Decimal(12, 2)
+  transactionDate DateTime      @map("transaction_date") @db.Date
+  observation     String?       @db.VarChar(255)
+  balanceAfter    Decimal       @map("balance_after") @db.Decimal(12, 2)
+  // Origem: retirar do saldo da conta ou valor já guardado externamente
+  origin          SavingsOrigin @default(from_balance) @map("origin")
+  createdAt       DateTime      @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -495,6 +529,31 @@ model Simulation {
   @@map("simulations")
 }
 
+
+model Subscription {
+  id              BigInt                 @id @default(autoincrement())
+  userId          BigInt                 @map("user_id")
+  cardId          BigInt?                @map("card_id")
+  categoryId      BigInt                 @map("category_id")
+  description     String                 @db.VarChar(160)
+  value           Decimal                @db.Decimal(12, 2)
+  periodicity     SubscriptionPeriodicity @default(monthly)
+  customDays      Int?                   @map("custom_days") @db.SmallInt
+  paymentMethod   PaymentMethod          @default(credit) @map("payment_method")
+  nextChargeDate  DateTime               @map("next_charge_date") @db.Date
+  endDate         DateTime?              @map("end_date") @db.Date
+  status          SubscriptionStatus     @default(active)
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card     Card?     @relation(fields: [cardId], references: [id])
+  category Category  @relation(fields: [categoryId], references: [id])
+
+  @@index([userId, status])
+  @@map("subscriptions")
+}
+
 model SimulationResult {
   id           BigInt   @id @default(autoincrement())
   simulationId BigInt   @map("simulation_id")
@@ -511,3 +570,4 @@ model SimulationResult {
   @@unique([simulationId, monthIndex])
   @@map("simulation_results")
 }
+

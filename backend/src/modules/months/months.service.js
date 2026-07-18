@@ -21,7 +21,36 @@ async function getOrCreateMonth(userId, month, year, client = prisma) {
   return client.month.create({ data: { userId, month, year, status: 'open' } });
 }
 
+/**
+ * CORREÇÃO DO BUG DE DATA:
+ * Antes: sempre criava/buscava o mês baseado na data do servidor (new Date()).
+ * Agora: retorna o mês aberto mais recente que o usuário já tem no sistema.
+ * Se não existir nenhum mês ainda, cria o mês da data atual do servidor
+ * (apenas no primeiro acesso, quando não há histórico).
+ *
+ * Isso garante que trocar de mês manualmente no frontend persiste na
+ * próxima vez que o usuário abrir o app — o sistema sempre aponta para
+ * o último mês aberto usado, não para "hoje no calendário".
+ */
 async function getCurrentMonth(userId, client = prisma) {
+  // Busca o mês aberto mais recente do usuário (o que foi criado por último)
+  const latestOpenMonth = await (client).month.findFirst({
+    where: { userId, status: 'open' },
+    orderBy: [{ year: 'desc' }, { month: 'desc' }],
+  });
+
+  if (latestOpenMonth) return latestOpenMonth;
+
+  // Se não há nenhum mês aberto (todos fechados ou usuário novo),
+  // busca o mês mais recente independentemente do status
+  const latestAnyMonth = await (client).month.findFirst({
+    where: { userId },
+    orderBy: [{ year: 'desc' }, { month: 'desc' }],
+  });
+
+  if (latestAnyMonth) return latestAnyMonth;
+
+  // Primeiro acesso: cria o mês atual do servidor
   const now = new Date();
   return getOrCreateMonth(userId, now.getMonth() + 1, now.getFullYear(), client);
 }

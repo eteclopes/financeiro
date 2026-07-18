@@ -18,14 +18,12 @@ async function listTransactions(userId) {
   });
 }
 
-async function deposit(userId, { value, date, observation }) {
-  // Sem lock, duas chamadas concorrentes (duplo clique, retry de rede) podem
-  // ler o mesmo currentBalance e gravar dois balanceAfter incorretos (lost
-  // update) — mesma classe de bug que closing.service.js já trava com
-  // `FOR UPDATE`. Aqui não há uma linha "de saldo" para travar (o saldo é
-  // derivado da última transação), então usamos um lock consultivo por
-  // usuário: serializa apenas depósitos/saques do MESMO usuário entre si e
-  // é liberado automaticamente ao fim da transação.
+/**
+ * ITEM 6: Novo comportamento de depósito com origem.
+ * - from_balance: desconta do saldo disponível (comportamento anterior)
+ * - external: apenas registra na reserva, sem afetar o saldo da conta
+ */
+async function deposit(userId, { value, date, observation, origin = 'from_balance' }) {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${userId})`;
 
@@ -36,12 +34,11 @@ async function deposit(userId, { value, date, observation }) {
     const currentBalance = last ? Number(last.balanceAfter) : 0;
     const balanceAfter = round2(currentBalance + value);
 
-    // O depósito sai do "bolso" do mês corrente — por isso conta como saída
-    // ao calcular o saldo atual do mês em que a movimentação ocorreu (ver
-    // dashboard.service.js), senão o dinheiro existiria duplicado: no saldo
-    // atual E no saldo guardado ao mesmo tempo.
+    // Se origem = from_balance: desconta do saldo do mês (via savingsNet no dashboard)
+    // Se origem = external: só registra na reserva, sem afetar saldo da conta
+
     return tx.savingsTransaction.create({
-      data: { userId, type: 'deposit', value, transactionDate: date, observation, balanceAfter },
+      data: { userId, type: 'deposit', value, transactionDate: date, observation, balanceAfter, origin },
     });
   }).then(async (created) => {
     await recordAuditLog(userId, 'savingsTransaction', created.id, 'deposit', { newValue: created });
@@ -69,7 +66,7 @@ async function withdraw(userId, { value, date, observation }) {
     const balanceAfter = round2(currentBalance - value);
 
     return tx.savingsTransaction.create({
-      data: { userId, type: 'withdraw', value, transactionDate: date, observation, balanceAfter },
+      data: { userId, type: 'withdraw', value, transactionDate: date, observation, balanceAfter, origin: 'from_balance' },
     });
   }).then(async (created) => {
     await recordAuditLog(userId, 'savingsTransaction', created.id, 'withdraw', { newValue: created });
@@ -77,15 +74,6 @@ async function withdraw(userId, { value, date, observation }) {
   });
 }
 
-/**
- * Edita o lançamento mais recente do extrato de poupança. É seguro porque
- * balanceAfter é uma cadeia sequencial (cada lançamento depende apenas do
- * anterior) — mexer em QUALQUER lançamento que não seja o último exigiria
- * recalcular o balanceAfter de todos os posteriores em cascata. Editar
- * apenas o último não tem esse problema: não existe nada depois dele.
- * Não permite trocar `type` (deposit<->withdraw) — isso mudaria o sentido
- * do lançamento; para isso o usuário deve excluir e lançar de novo.
- */
 async function updateLastTransaction(userId, transactionId, { value, date, observation }) {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${userId})`;
@@ -97,20 +85,19 @@ async function updateLastTransaction(userId, transactionId, { value, date, obser
 
     if (!last || String(last.id) !== String(transactionId)) {
       throw new AppError(
-        'Só é possível editar o lançamento mais recente do extrato de poupança. Para corrigir um lançamento mais antigo, é preciso desfazer os posteriores primeiro.',
+        'Só é possível editar o lançamento mais recente do extrato de poupança.',
         409,
         'NOT_LAST_SAVINGS_TRANSACTION'
       );
     }
 
-    // Saldo antes deste lançamento = desfaz o próprio efeito dele sobre o balanceAfter salvo.
     const balanceBeforeThis = last.type === 'deposit'
       ? round2(Number(last.balanceAfter) - Number(last.value))
       : round2(Number(last.balanceAfter) + Number(last.value));
 
     if (last.type === 'withdraw' && value > balanceBeforeThis + 0.009) {
       throw new AppError(
-        `Saldo guardado insuficiente para esse valor. Disponível antes deste lançamento: R$ ${balanceBeforeThis.toFixed(2)}.`,
+        `Saldo guardado insuficiente para esse valor. Disponível antes: R$ ${balanceBeforeThis.toFixed(2)}.`,
         409,
         'INSUFFICIENT_SAVINGS_BALANCE'
       );
@@ -131,11 +118,6 @@ async function updateLastTransaction(userId, transactionId, { value, date, obser
   });
 }
 
-/**
- * Exclui o lançamento mais recente do extrato — mesma justificativa de
- * segurança de updateLastTransaction. Como não há nada depois dele na
- * cadeia, remover não deixa nenhum balanceAfter desatualizado para trás.
- */
 async function deleteLastTransaction(userId, transactionId) {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(${userId})`;
@@ -147,7 +129,7 @@ async function deleteLastTransaction(userId, transactionId) {
 
     if (!last || String(last.id) !== String(transactionId)) {
       throw new AppError(
-        'Só é possível excluir o lançamento mais recente do extrato de poupança. Para remover um lançamento mais antigo, é preciso desfazer os posteriores primeiro.',
+        'Só é possível excluir o lançamento mais recente do extrato de poupança.',
         409,
         'NOT_LAST_SAVINGS_TRANSACTION'
       );
@@ -162,15 +144,15 @@ async function deleteLastTransaction(userId, transactionId) {
 }
 
 /**
- * Soma líquida de movimentações de saldo guardado dentro de um intervalo de
- * datas (tipicamente o mês selecionado no dashboard). Depósito é saída de
- * caixa do mês (positivo aqui = deve ser subtraído do saldo atual);
- * retirada é entrada (negativo aqui = deve ser somado).
+ * Soma líquida de movimentações de saldo guardado dentro de um intervalo.
+ * IMPORTANTE: Depósitos de origem 'external' NÃO saem do saldo da conta,
+ * então só contamos os 'from_balance' aqui para o cálculo do saldo disponível.
  */
 async function getNetMovementInRange(userId, startDate, endDate) {
   const [deposits, withdraws] = await Promise.all([
+    // Apenas depósitos "from_balance" afetam o saldo da conta
     prisma.savingsTransaction.aggregate({
-      where: { userId, type: 'deposit', transactionDate: { gte: startDate, lte: endDate } },
+      where: { userId, type: 'deposit', origin: 'from_balance', transactionDate: { gte: startDate, lte: endDate } },
       _sum: { value: true },
     }),
     prisma.savingsTransaction.aggregate({
@@ -182,4 +164,45 @@ async function getNetMovementInRange(userId, startDate, endDate) {
   return round2(Number(deposits._sum.value ?? 0) - Number(withdraws._sum.value ?? 0));
 }
 
-module.exports = { getCurrentBalance, listTransactions, deposit, withdraw, updateLastTransaction, deleteLastTransaction, getNetMovementInRange };
+/**
+ * Retorna estatísticas detalhadas da reserva para o frontend.
+ */
+async function getSavingsStats(userId) {
+  const [allDeposits, externalDeposits, allWithdraws, balance] = await Promise.all([
+    prisma.savingsTransaction.aggregate({
+      where: { userId, type: 'deposit' },
+      _sum: { value: true },
+    }),
+    prisma.savingsTransaction.aggregate({
+      where: { userId, type: 'deposit', origin: 'external' },
+      _sum: { value: true },
+    }),
+    prisma.savingsTransaction.aggregate({
+      where: { userId, type: 'withdraw' },
+      _sum: { value: true },
+    }),
+    getCurrentBalance(userId),
+  ]);
+
+  const totalDeposited = Number(allDeposits._sum.value ?? 0);
+  const externalTotal = Number(externalDeposits._sum.value ?? 0);
+  const fromBalanceTotal = round2(totalDeposited - externalTotal);
+
+  return {
+    totalReserved: balance,
+    fromBalance: fromBalanceTotal,
+    external: externalTotal,
+    totalWithdrawn: Number(allWithdraws._sum.value ?? 0),
+  };
+}
+
+module.exports = {
+  getCurrentBalance,
+  listTransactions,
+  deposit,
+  withdraw,
+  updateLastTransaction,
+  deleteLastTransaction,
+  getNetMovementInRange,
+  getSavingsStats,
+};

@@ -4,15 +4,10 @@ import { savingsApi } from '../lib/services';
 import { extractErrorMessage } from '../lib/api';
 import { formatCurrency, formatShortDate } from '../lib/format';
 import { Card, CardHeader, Badge, Button, EmptyState } from '../components/ui/index';
-import { Modal, ConfirmDialog, FormGroup, Input } from '../components/ui/Modal';
+import { Modal, ConfirmDialog, FormGroup, Input, Select } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
 import { useThemeStore } from '../store/themeStore';
 
-// No nível do módulo (não dentro de SavingsPage) — mesmo motivo do ajuste
-// em WhatIfSimulatorPage.jsx/GoalsPage.jsx: uma função-componente definida
-// dentro de outro componente perde a identidade estável entre renders.
-// Aqui não há campo de texto (não causava perda de foco), mas o tooltip
-// do gráfico remontava a cada render de SavingsPage sem necessidade.
 function CustomTooltip({ active, payload, label }) {
   const theme = useThemeStore((s) => s.theme);
   if (!active || !payload?.length) return null;
@@ -24,11 +19,13 @@ function CustomTooltip({ active, payload, label }) {
   );
 }
 
+const ORIGIN_LABELS = { from_balance: 'Do saldo', external: 'Externo' };
+
 export default function SavingsPage() {
-  const [data, setData]       = useState({ balance: 0, transactions: [] });
+  const [data, setData]       = useState({ balance: 0, transactions: [], stats: null });
   const [loading, setLoading] = useState(true);
-  const [modal, setModal]     = useState(null);
-  const [form, setForm]       = useState({ value:'', date: new Date().toISOString().slice(0,10), observation:'' });
+  const [modal, setModal]     = useState(null); // 'deposit' | 'withdraw'
+  const [form, setForm]       = useState({ value:'', date: new Date().toISOString().slice(0,10), observation:'', origin:'from_balance' });
   const [saving, setSaving]   = useState(false);
   const [editTxModal, setEditTxModal] = useState(null);
   const [editTxForm, setEditTxForm]   = useState({ value:'', date:'', observation:'' });
@@ -50,15 +47,18 @@ export default function SavingsPage() {
 
   function openModal(type) {
     setModal(type);
-    setForm({ value:'', date: new Date().toISOString().slice(0,10), observation:'' });
+    setForm({ value:'', date: new Date().toISOString().slice(0,10), observation:'', origin:'from_balance' });
   }
 
   async function handle() {
     if (!form.value || parseFloat(form.value) <= 0) { toast.error('Informe um valor válido.'); return; }
     setSaving(true);
     try {
-      const fn = modal === 'deposit' ? savingsApi.deposit : savingsApi.withdraw;
-      await fn({ value: parseFloat(form.value), date: form.date, observation: form.observation });
+      if (modal === 'deposit') {
+        await savingsApi.deposit({ value: parseFloat(form.value), date: form.date, observation: form.observation, origin: form.origin });
+      } else {
+        await savingsApi.withdraw({ value: parseFloat(form.value), date: form.date, observation: form.observation });
+      }
       toast.success(modal === 'deposit' ? 'Depósito realizado!' : 'Retirada realizada!');
       setModal(null); load();
     } catch (e) { toast.error(extractErrorMessage(e, 'Erro.')); }
@@ -66,11 +66,7 @@ export default function SavingsPage() {
   }
 
   function openEditTx(t) {
-    setEditTxForm({
-      value: String(t.value),
-      date: new Date(t.transactionDate).toISOString().slice(0,10),
-      observation: t.observation ?? '',
-    });
+    setEditTxForm({ value: String(t.value), date: new Date(t.transactionDate).toISOString().slice(0,10), observation: t.observation ?? '' });
     setEditTxModal(t);
   }
 
@@ -78,11 +74,7 @@ export default function SavingsPage() {
     if (!editTxForm.value || parseFloat(editTxForm.value) <= 0) { toast.error('Informe um valor válido.'); return; }
     setSaving(true);
     try {
-      await savingsApi.update(editTxModal.id, {
-        value: parseFloat(editTxForm.value),
-        date: editTxForm.date,
-        observation: editTxForm.observation || undefined,
-      });
+      await savingsApi.update(editTxModal.id, { value: parseFloat(editTxForm.value), date: editTxForm.date, observation: editTxForm.observation || undefined });
       toast.success('Lançamento atualizado!'); setEditTxModal(null); load();
     } catch (e) { toast.error(extractErrorMessage(e, 'Erro ao atualizar.')); }
     finally { setSaving(false); }
@@ -101,6 +93,8 @@ export default function SavingsPage() {
     label: formatShortDate(t.transactionDate),
     saldo: Number(t.balanceAfter),
   }));
+
+  const stats = data.stats;
 
   return (
     <div className="space-y-5 animate-fade-in">
@@ -126,6 +120,26 @@ export default function SavingsPage() {
           </div>
         </div>
       </div>
+
+      {/* Cards de estatísticas — Item 6 */}
+      {stats && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Card className="p-4 text-center">
+            <p className="text-xs text-muted mb-1">Total reservado</p>
+            <p className="text-2xl font-bold font-mono text-primary-dark dark:text-primary-light">{formatCurrency(stats.totalReserved)}</p>
+          </Card>
+          <Card className="p-4 text-center">
+            <p className="text-xs text-muted mb-1">Saiu do saldo</p>
+            <p className="text-2xl font-bold font-mono text-warning-dark dark:text-warning-light">{formatCurrency(stats.fromBalance)}</p>
+            <p className="text-[11px] text-muted mt-0.5">Descontado do fluxo mensal</p>
+          </Card>
+          <Card className="p-4 text-center">
+            <p className="text-xs text-muted mb-1">Valor externo</p>
+            <p className="text-2xl font-bold font-mono text-info-dark dark:text-info-light">{formatCurrency(stats.external)}</p>
+            <p className="text-[11px] text-muted mt-0.5">Já guardado fora da conta</p>
+          </Card>
+        </div>
+      )}
 
       {/* Gráfico */}
       {chartData.length > 1 && (
@@ -155,7 +169,7 @@ export default function SavingsPage() {
       <Card padding={false}>
         <div className="px-5 py-4 border-b border-border dark:border-white/[0.06]">
           <h3 className="font-semibold text-slate-900 dark:text-zinc-50">Histórico de Movimentações</h3>
-          <p className="text-xs text-muted mt-0.5">Só o lançamento mais recente pode ser editado ou excluído — isso preserva o saldo acumulado dos anteriores.</p>
+          <p className="text-xs text-muted mt-0.5">Só o lançamento mais recente pode ser editado ou excluído.</p>
         </div>
         {loading ? <div className="p-5 space-y-3">{Array.from({length:4}).map((_,i)=><div key={i} className="h-10 shimmer-bg rounded-xl" />)}</div>
           : data.transactions.length === 0
@@ -164,7 +178,7 @@ export default function SavingsPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-subtle/60 dark:bg-white/[0.03]"><tr>
-                    {['Tipo','Valor','Saldo após','Data','Observação',''].map(h=>(
+                    {['Tipo','Origem','Valor','Saldo após','Data','Observação',''].map(h=>(
                       <th key={h} className="table-header">{h}</th>
                     ))}
                   </tr></thead>
@@ -173,6 +187,13 @@ export default function SavingsPage() {
                       <tr key={t.id} className="hover:bg-subtle/40 dark:hover:bg-white/[0.03] transition-colors">
                         <td className="table-cell">
                           <Badge variant={t.type==='deposit'?'success':'danger'}>{t.type==='deposit'?'Depósito':'Retirada'}</Badge>
+                        </td>
+                        <td className="table-cell">
+                          {t.type === 'deposit' ? (
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${t.origin === 'external' ? 'bg-info-subtle text-info-dark' : 'bg-warning-subtle text-warning-dark'}`}>
+                              {ORIGIN_LABELS[t.origin] ?? t.origin}
+                            </span>
+                          ) : <span className="text-muted text-xs">—</span>}
                         </td>
                         <td className={`table-cell font-mono tabular-nums font-bold ${t.type==='deposit'?'text-primary-dark dark:text-primary-light':'text-danger-dark dark:text-danger-light'}`}>
                           {t.type==='deposit'?'+':'-'}{formatCurrency(t.value)}
@@ -196,14 +217,40 @@ export default function SavingsPage() {
             )}
       </Card>
 
-      {/* Modal */}
-      <Modal open={!!modal} onClose={() => setModal(null)} title={modal==='deposit'?'Depositar na Reserva':'Retirar da Reserva'} size="sm">
+      {/* Modal Depositar */}
+      <Modal open={modal === 'deposit'} onClose={() => setModal(null)} title="Depositar na Reserva" size="sm">
         <div className="space-y-4">
-          {modal === 'deposit' && (
-            <div className="bg-primary-subtle border border-primary/20 rounded-xl p-3 text-xs text-primary-dark">
-              💡 O valor depositado será descontado do saldo atual do mês em que ocorrer.
+          {/* Item 6: Origem do valor */}
+          <div>
+            <p className="text-sm font-medium text-slate-700 dark:text-zinc-300 mb-2">Origem do valor</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { val:'from_balance', label:'Retirar do saldo', desc:'Desconta do saldo da conta', icon:'💰' },
+                { val:'external',     label:'Já guardado fora', desc:'Apenas registra na reserva', icon:'🏦' },
+              ].map(opt => (
+                <button key={opt.val} type="button"
+                  onClick={() => setForm({...form, origin: opt.val})}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    form.origin === opt.val
+                      ? 'border-primary bg-primary-subtle dark:bg-primary/10'
+                      : 'border-border dark:border-white/10 hover:border-primary/40'
+                  }`}>
+                  <p className="text-sm font-medium text-slate-800 dark:text-zinc-100">{opt.icon} {opt.label}</p>
+                  <p className="text-[11px] text-muted mt-0.5">{opt.desc}</p>
+                </button>
+              ))}
             </div>
-          )}
+            {form.origin === 'from_balance' && (
+              <p className="text-xs text-warning-dark bg-warning-subtle border border-warning/20 rounded-xl p-2.5 mt-2">
+                ⚠ Este valor será descontado do saldo disponível do mês.
+              </p>
+            )}
+            {form.origin === 'external' && (
+              <p className="text-xs text-info-dark bg-info-subtle border border-info/20 rounded-xl p-2.5 mt-2">
+                ℹ Apenas registra na reserva. O saldo da conta não é alterado.
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <FormGroup label="Valor" required><Input type="number" min="0" step="0.01" value={form.value} onChange={(e) => setForm({...form,value:e.target.value})} autoFocus /></FormGroup>
             <FormGroup label="Data"><Input type="date" value={form.date} onChange={(e) => setForm({...form,date:e.target.value})} /></FormGroup>
@@ -211,9 +258,22 @@ export default function SavingsPage() {
           <FormGroup label="Observação"><Input value={form.observation} onChange={(e) => setForm({...form,observation:e.target.value})} placeholder="Opcional" /></FormGroup>
           <div className="flex gap-3 justify-end">
             <Button variant="outline" onClick={() => setModal(null)}>Cancelar</Button>
-            <Button variant={modal==='deposit'?'primary':'danger'} onClick={handle} loading={saving}>
-              {modal==='deposit'?'Depositar':'Retirar'}
-            </Button>
+            <Button onClick={handle} loading={saving}>Depositar</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Retirar */}
+      <Modal open={modal === 'withdraw'} onClose={() => setModal(null)} title="Retirar da Reserva" size="sm">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <FormGroup label="Valor" required><Input type="number" min="0" step="0.01" value={form.value} onChange={(e) => setForm({...form,value:e.target.value})} autoFocus /></FormGroup>
+            <FormGroup label="Data"><Input type="date" value={form.date} onChange={(e) => setForm({...form,date:e.target.value})} /></FormGroup>
+          </div>
+          <FormGroup label="Observação"><Input value={form.observation} onChange={(e) => setForm({...form,observation:e.target.value})} placeholder="Opcional" /></FormGroup>
+          <div className="flex gap-3 justify-end">
+            <Button variant="outline" onClick={() => setModal(null)}>Cancelar</Button>
+            <Button variant="danger" onClick={handle} loading={saving}>Retirar</Button>
           </div>
         </div>
       </Modal>
