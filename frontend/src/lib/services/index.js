@@ -147,3 +147,10 @@ export const subscriptionsApi = {
   pause: (id) => api.patch(`/subscriptions/${id}/pause`),
   cancel: (id) => api.post(`/subscriptions/${id}/cancel`),
 };
+
+// ── Billing / Plano ──
+export const billingApi = {
+  getPlan:    ()         => api.get('/billing/plan'),
+  checkout:   (interval) => api.post('/billing/checkout', { interval }),
+  cancel:     ()         => api.post('/billing/cancel'),
+};

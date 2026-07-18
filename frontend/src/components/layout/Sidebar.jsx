@@ -1,6 +1,9 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useUIStore } from '../../store/uiStore';
 import { useAuthStore } from '../../store/authStore';
+import { usePlanStore } from '../../store/planStore';
+import { UpgradeModal } from '../ui/UpgradeModal';
+import { useState } from 'react';
 import {
   IconDashboard, IconIncome, IconExpense, IconCard, IconWallet, IconGoal,
   IconSimulator, IconHistory, IconReport, IconSettings, IconLogout,
@@ -15,8 +18,8 @@ const NAV = [
   { to: '/savings',            Icon: IconWallet,     label: 'Reserva Financeira',  group: 'main' },
   { to: '/goals',              Icon: IconGoal,       label: 'Metas',               group: 'main' },
   { to: '/budgets',            Icon: IconBudget,     label: 'Orçamento',           group: 'main' },
-  { to: '/simulator/purchase', Icon: IconSimulator,  label: 'Simulador de Compras',group: 'tools' },
-  { to: '/simulator/what-if',  Icon: IconSimulator,  label: 'Simulador E Se?',     group: 'tools' },
+  { to: '/simulator/purchase', Icon: IconSimulator,  label: 'Simulador de Compras',group: 'tools', pro: true },
+  { to: '/simulator/what-if',  Icon: IconSimulator,  label: 'Simulador E Se?',     group: 'tools', pro: true },
   { to: '/history',            Icon: IconHistory,    label: 'Histórico',           group: 'tools' },
   { to: '/trends',             Icon: IconTrend,      label: 'Tendências',          group: 'tools' },
   { to: '/insights',           Icon: IconBell,       label: 'Alertas e Dicas',     group: 'tools' },
@@ -73,7 +76,7 @@ export function Sidebar() {
                   </p>
                 )}
                 <div className="space-y-0.5">
-                  {items.map(({ to, Icon, label }) => (
+                  {items.map(({ to, Icon, label, pro }) => (
                     <NavLink key={to} to={to} onClick={() => window.innerWidth < 1024 && setSidebar(false)}
                       className={({ isActive }) =>
                         `nav-item relative ${isActive ? 'nav-item-active' : 'nav-item-inactive'}`
@@ -87,6 +90,9 @@ export function Sidebar() {
                           <span className={`truncate transition-all duration-200 ${open ? 'opacity-100' : 'opacity-0 w-0 lg:hidden'}`}>
                             {label}
                           </span>
+                          {pro && open && (
+                            <span className="ml-auto text-[9px] font-bold bg-gradient-to-r from-amber-400 to-orange-400 text-white px-1.5 py-0.5 rounded-full shrink-0">PRO</span>
+                          )}
                         </>
                       )}
                     </NavLink>

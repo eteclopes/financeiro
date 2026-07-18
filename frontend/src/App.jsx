@@ -1,71 +1,77 @@
 import { useEffect, Component } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './store/authStore';
+import { usePlanStore } from './store/planStore';
 import { ToastContainer } from './components/ui/Toast';
 import { AppLayout } from './components/layout/AppLayout';
 import { TutorialDriver, useAutoTutorial } from './components/tutorial/TutorialDriver';
+import { initGoogleAnalytics, trackPage } from './lib/analytics';
+import { ProGate } from './components/ui/ProGate';
+import { UpgradeModal } from './components/ui/UpgradeModal';
 
 // Pages
-import LoginPage           from './pages/LoginPage';
-import RegisterPage        from './pages/RegisterPage';
-import ForgotPasswordPage  from './pages/ForgotPasswordPage';
-import ResetPasswordPage   from './pages/ResetPasswordPage';
-import DashboardPage       from './pages/DashboardPage';
-import IncomesPage         from './pages/IncomesPage';
-import ExpensesPage        from './pages/ExpensesPage';
-import CardsPage           from './pages/CardsPage';
-import SavingsPage         from './pages/SavingsPage';
-import GoalsPage           from './pages/GoalsPage';
-import SubscriptionsPage   from './pages/SubscriptionsPage'; // mantido para rota de fallback, assinaturas agora ficam dentro de Despesas
+import LoginPage            from './pages/LoginPage';
+import RegisterPage         from './pages/RegisterPage';
+import ForgotPasswordPage   from './pages/ForgotPasswordPage';
+import ResetPasswordPage    from './pages/ResetPasswordPage';
+import DashboardPage        from './pages/DashboardPage';
+import IncomesPage          from './pages/IncomesPage';
+import ExpensesPage         from './pages/ExpensesPage';
+import CardsPage            from './pages/CardsPage';
+import SavingsPage          from './pages/SavingsPage';
+import GoalsPage            from './pages/GoalsPage';
 import PurchaseSimulatorPage from './pages/PurchaseSimulatorPage';
-import WhatIfSimulatorPage from './pages/WhatIfSimulatorPage';
-import HistoryPage         from './pages/HistoryPage';
-import TrendsPage          from './pages/TrendsPage';
-import BudgetsPage         from './pages/BudgetsPage';
-import InsightsPage        from './pages/InsightsPage';
-import ReportsPage         from './pages/ReportsPage';
-import SettingsPage        from './pages/SettingsPage';
+import WhatIfSimulatorPage  from './pages/WhatIfSimulatorPage';
+import HistoryPage          from './pages/HistoryPage';
+import TrendsPage           from './pages/TrendsPage';
+import BudgetsPage          from './pages/BudgetsPage';
+import InsightsPage         from './pages/InsightsPage';
+import ReportsPage          from './pages/ReportsPage';
+import SettingsPage         from './pages/SettingsPage';
 
-// ── Error Boundary ──────────────────────────────────────────
+// ── Error Boundary ──────────────────────────────────────────────────────────
 class ErrorBoundary extends Component {
   constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(error) { return { error }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
   render() {
-    if (this.state.error) {
-      return (
-        <div className="min-h-screen bg-bg flex items-center justify-center p-6">
-          <div className="bg-white rounded-2xl border border-danger/20 shadow-modal p-8 max-w-md w-full text-center">
-            <div className="text-5xl mb-4">⚠</div>
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Algo deu errado</h2>
-            <p className="text-sm text-muted mb-6">{this.state.error?.message ?? 'Erro inesperado na aplicação.'}</p>
-            <button onClick={() => { this.setState({ error: null }); window.location.reload(); }}
-              className="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-primary-dark transition-colors">
-              Recarregar
-            </button>
-          </div>
+    if (this.state.error) return (
+      <div className="min-h-screen bg-bg flex items-center justify-center p-6">
+        <div className="bg-white rounded-2xl border border-danger/20 shadow-modal p-8 max-w-md w-full text-center">
+          <div className="text-5xl mb-4">⚠</div>
+          <h2 className="text-xl font-bold text-slate-900 mb-2">Algo deu errado</h2>
+          <p className="text-sm text-muted mb-6">{this.state.error?.message}</p>
+          <button onClick={() => { this.setState({ error: null }); window.location.reload(); }}
+            className="bg-primary text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-primary-dark transition-colors">
+            Recarregar
+          </button>
         </div>
-      );
-    }
+      </div>
+    );
     return this.props.children;
   }
 }
 
-// ── Protected Route ─────────────────────────────────────────
+// ── Page tracker — dispara trackPage em cada mudança de rota ────────────────
+function PageTracker() {
+  const location = useLocation();
+  useEffect(() => { trackPage(location.pathname); }, [location.pathname]);
+  return null;
+}
+
+// ── Protected Route ─────────────────────────────────────────────────────────
 function ProtectedRoute({ children }) {
   const status = useAuthStore((s) => s.status);
-  if (status === 'idle' || status === 'loading') {
-    return (
-      <div className="min-h-screen bg-bg flex flex-col items-center justify-center gap-4">
-        <div className="h-10 w-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-        <p className="text-sm text-muted font-medium">Carregando...</p>
-      </div>
-    );
-  }
+  if (status === 'idle' || status === 'loading') return (
+    <div className="min-h-screen bg-bg flex flex-col items-center justify-center gap-4">
+      <div className="h-10 w-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      <p className="text-sm text-muted font-medium">Carregando...</p>
+    </div>
+  );
   if (status === 'unauthenticated') return <Navigate to="/login" replace />;
   return children;
 }
 
-// ── Auth Shell ──────────────────────────────────────────────
+// ── Auth Shell ──────────────────────────────────────────────────────────────
 function AuthShell({ children }) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex flex-col items-center justify-center p-4">
@@ -76,9 +82,7 @@ function AuthShell({ children }) {
       <div className="relative w-full max-w-sm animate-scale-in">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-3 mb-3">
-            <div className="h-11 w-11 bg-primary rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-glow">
-              F
-            </div>
+            <div className="h-11 w-11 bg-primary rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-glow">F</div>
             <span className="text-3xl font-bold text-white">FinançasPro</span>
           </div>
           <p className="text-slate-400 text-sm">Gestão financeira pessoal inteligente</p>
@@ -90,9 +94,23 @@ function AuthShell({ children }) {
   );
 }
 
-// ── App Shell autenticado (com tutorial) ────────────────────
+// ── Authenticated Shell ─────────────────────────────────────────────────────
 function AuthenticatedShell() {
-  useAutoTutorial(); // Inicia automaticamente no primeiro acesso
+  useAutoTutorial();
+
+  // Busca plano ao montar
+  const fetchPlan = usePlanStore((s) => s.fetchPlan);
+  useEffect(() => { fetchPlan(); }, [fetchPlan]);
+
+  // Verifica se voltou de checkout com ?upgrade=success
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('upgrade') === 'success') {
+      fetchPlan();
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [fetchPlan]);
+
   return (
     <>
       <TutorialDriver />
@@ -101,12 +119,24 @@ function AuthenticatedShell() {
   );
 }
 
-// ── App ─────────────────────────────────────────────────────
+// ── App ─────────────────────────────────────────────────────────────────────
 export default function App() {
   const bootstrap    = useAuthStore((s) => s.bootstrap);
   const forceSignOut = useAuthStore((s) => s.forceSignOut);
+  const syncFromUser = usePlanStore((s) => s.syncFromUser);
+  const user         = useAuthStore((s) => s.user);
+
+  // Inicializa GA4 (se configurado)
+  useEffect(() => {
+    const gaId = import.meta.env.VITE_GA_MEASUREMENT_ID;
+    if (gaId) initGoogleAnalytics(gaId);
+  }, []);
 
   useEffect(() => { bootstrap(); }, [bootstrap]);
+
+  // Sincroniza plano quando user mudar (login/bootstrap)
+  useEffect(() => { syncFromUser(user); }, [user, syncFromUser]);
+
   useEffect(() => {
     const h = () => forceSignOut();
     window.addEventListener('auth:session-expired', h);
@@ -115,6 +145,7 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      <PageTracker />
       <Routes>
         <Route path="/login"           element={<AuthShell><LoginPage /></AuthShell>} />
         <Route path="/register"        element={<AuthShell><RegisterPage /></AuthShell>} />
@@ -130,8 +161,11 @@ export default function App() {
           <Route path="/savings"            element={<ErrorBoundary><SavingsPage /></ErrorBoundary>} />
           <Route path="/goals"              element={<ErrorBoundary><GoalsPage /></ErrorBoundary>} />
           <Route path="/subscriptions"      element={<Navigate to="/expenses" replace />} />
-          <Route path="/simulator/purchase" element={<ErrorBoundary><PurchaseSimulatorPage /></ErrorBoundary>} />
-          <Route path="/simulator/what-if"  element={<ErrorBoundary><WhatIfSimulatorPage /></ErrorBoundary>} />
+
+          {/* Simuladores: Pro only */}
+          <Route path="/simulator/purchase" element={<ErrorBoundary><ProGate feature="simuladores"><PurchaseSimulatorPage /></ProGate></ErrorBoundary>} />
+          <Route path="/simulator/what-if"  element={<ErrorBoundary><ProGate feature="simuladores"><WhatIfSimulatorPage /></ProGate></ErrorBoundary>} />
+
           <Route path="/history"            element={<ErrorBoundary><HistoryPage /></ErrorBoundary>} />
           <Route path="/trends"             element={<ErrorBoundary><TrendsPage /></ErrorBoundary>} />
           <Route path="/budgets"            element={<ErrorBoundary><BudgetsPage /></ErrorBoundary>} />
@@ -143,6 +177,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ToastContainer />
     </ErrorBoundary>
   );
 }

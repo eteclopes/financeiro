@@ -119,6 +119,29 @@ enum SavingsOrigin {
   external
 }
 
+enum UserPlan {
+  free
+  pro
+}
+
+enum SubscriptionBillingStatus {
+  active
+  past_due
+  cancelled
+  trialing
+}
+
+enum BillingProvider {
+  stripe
+  mercadopago
+  manual
+}
+
+enum BillingInterval {
+  monthly
+  annual
+}
+
 // ---------------- MODELS ----------------
 
 model User {
@@ -147,6 +170,14 @@ model User {
   auditLogs          AuditLog[]
   simulations        Simulation[]
   subscriptions      Subscription[]
+  planSubscription   PlanSubscription?
+
+  // Plano do usuário (free | pro)
+  plan          UserPlan  @default(free)
+  // Data de expiração do plano Pro (null = free ou pro vitalício)
+  planExpiresAt DateTime? @map("plan_expires_at")
+  // Stripe/MP customer ID para referenciar cobranças
+  billingCustomerId String? @map("billing_customer_id") @db.VarChar(120)
 
   @@map("users")
 }
@@ -553,6 +584,43 @@ model Subscription {
   @@index([userId, status])
   @@map("subscriptions")
 }
+
+model PlanSubscription {
+  id               BigInt                    @id @default(autoincrement())
+  userId           BigInt                    @unique @map("user_id")
+  provider         BillingProvider
+  externalId       String?                   @map("external_id") @db.VarChar(255)
+  status           SubscriptionBillingStatus @default(active)
+  interval         BillingInterval           @default(monthly)
+  currentPeriodStart DateTime                @map("current_period_start")
+  currentPeriodEnd   DateTime                @map("current_period_end")
+  cancelAtPeriodEnd  Boolean                 @default(false) @map("cancel_at_period_end")
+  trialEndsAt      DateTime?                 @map("trial_ends_at")
+  priceAmount      Decimal                   @map("price_amount") @db.Decimal(10, 2)
+  currency         String                    @default("BRL") @db.VarChar(3)
+  createdAt        DateTime                  @default(now()) @map("created_at")
+  updatedAt        DateTime                  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("plan_subscriptions")
+}
+
+model PageView {
+  id        BigInt   @id @default(autoincrement())
+  path      String   @db.VarChar(255)
+  userId    BigInt?  @map("user_id")
+  sessionId String?  @map("session_id") @db.VarChar(100)
+  referrer  String?  @db.VarChar(500)
+  userAgent String?  @map("user_agent") @db.VarChar(500)
+  country   String?  @db.VarChar(2)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([path, createdAt])
+  @@index([userId])
+  @@map("page_views")
+}
+
 
 model SimulationResult {
   id           BigInt   @id @default(autoincrement())

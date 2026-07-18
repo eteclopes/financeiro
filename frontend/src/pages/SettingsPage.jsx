@@ -6,9 +6,17 @@ import { Card, CardHeader, Badge, Button } from '../components/ui/index';
 import { Modal, FormGroup, Input, Select } from '../components/ui/Modal';
 import { useUIStore } from '../store/uiStore';
 import { useTutorialStore } from '../store/tutorialStore';
+import { usePlanStore } from '../store/planStore';
+import { UpgradeModal } from '../components/ui/UpgradeModal';
 
 export default function SettingsPage() {
-  const user  = useAuthStore((s) => s.user);
+  const user     = useAuthStore((s) => s.user);
+  const isPro    = usePlanStore((s) => s.isPro);
+  const plan     = usePlanStore((s) => s.plan);
+  const fetchPlan = usePlanStore((s) => s.fetchPlan);
+  const planExpiresAt = usePlanStore((s) => s.planExpiresAt);
+  const cancelAtPeriodEnd = usePlanStore((s) => s.cancelAtPeriodEnd);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const updateProfile = useAuthStore((s) => s.updateProfile);
   const toast = useUIStore((s) => s);
   const [catType, setCatType]     = useState('expense');
@@ -205,6 +213,64 @@ export default function SettingsPage() {
           </div>
         </div>
       </Card>
+
+      {/* Card Plano */}
+      <Card>
+        <CardHeader title="Plano atual" />
+        <div className="flex items-center justify-between flex-wrap gap-4 p-1">
+          <div className="flex items-center gap-3">
+            {isPro ? (
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">⭐</span>
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-zinc-50">Plano Pro</p>
+                  {planExpiresAt && (
+                    <p className="text-xs text-muted">
+                      {cancelAtPeriodEnd ? 'Cancela em' : 'Renova em'}{' '}
+                      {new Date(planExpiresAt).toLocaleDateString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-2xl">🆓</span>
+                <div>
+                  <p className="font-bold text-slate-900 dark:text-zinc-50">Plano Gratuito</p>
+                  <p className="text-xs text-muted">Cartões limitados · Sem simuladores</p>
+                </div>
+              </div>
+            )}
+          </div>
+          {isPro ? (
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={async () => {
+                if (window.confirm('Cancelar o Plano Pro? O acesso continua até o fim do período pago.')) {
+                  const { api } = await import('../lib/api');
+                  await api.post('/billing/cancel');
+                  fetchPlan();
+                }
+              }}>
+                Cancelar plano
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={() => setUpgradeOpen(true)} className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 hover:opacity-90">
+              ⭐ Fazer Upgrade Pro
+            </Button>
+          )}
+        </div>
+        {!isPro && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm border-t border-border dark:border-white/[0.06] pt-4">
+            {['Cartões ilimitados','Simuladores','Relatórios avançados','Análise comportamental','Histórico completo'].map(f => (
+              <div key={f} className="flex items-center gap-2 text-muted">
+                <span className="text-amber-500 font-bold">⭐</span> {f}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} />
 
       {/* Card Tutorial */}
       <Card>

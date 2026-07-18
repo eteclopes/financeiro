@@ -19,6 +19,7 @@ const BCRYPT_ROUNDS = 12;
 const DUMMY_PASSWORD_HASH = '$2a$12$RXUW.qmEXBzInhTZlg2mM.VsSzXz7.mx2Ym7fdqSQc5iXHat1EaKC';
 
 function publicUser(user) {
+  const isPro = user.plan === 'pro' && (!user.planExpiresAt || user.planExpiresAt > new Date());
   return { id: user.id, name: user.name, email: user.email, createdAt: user.createdAt };
 }
 
